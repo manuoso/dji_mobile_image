@@ -183,6 +183,13 @@ public class MainActivity extends Activity implements OnClickListener {
                                 mWidth = width;
                                 mHeight = height;
 
+                                if (bytes.length < width * height) {
+                                    // TODO if NOT decoded...
+                                }else{
+                                    mImgDecode = yuvDataDecode(bytes, width, height);
+                                    // TODO if decoded...
+                                }
+
 //                                int colorFormat = mediaFormat.getInteger(MediaFormat.KEY_COLOR_FORMAT);
 //                                switch (colorFormat) {
 //                                    case MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420SemiPlanar:
@@ -200,15 +207,6 @@ public class MainActivity extends Activity implements OnClickListener {
 //                                    default:
 //                                        break;
 //                                }
-
-                                mImgDecode = yuvDataDecode(bytes, width, height);
-
-                                if (mImgDecode.length < width * height) {
-                                    // TODO if NOT decoded...
-                                }else{
-                                    // TODO if decoded...
-                                }
-
                             } catch (InterruptedException e) {
                                 // TODO
                             } finally {
@@ -240,11 +238,6 @@ public class MainActivity extends Activity implements OnClickListener {
 
     // For android API <= 23
     private byte[] oldYuvData(byte[] yuvFrame, int width, int height){
-        if (yuvFrame.length < width * height) {
-            byte[] result = new byte[0];
-            return result;
-        }
-
         byte[] y = new byte[width * height];
         byte[] u = new byte[width * height / 4];
         byte[] v = new byte[width * height / 4];
@@ -285,11 +278,6 @@ public class MainActivity extends Activity implements OnClickListener {
     }
 
     private byte[] yuvDataDecode(byte[] yuvFrame, int width, int height) {
-        if (yuvFrame.length < width * height) {
-            byte[] result = new byte[0];
-            return result;
-        }
-
         int length = width * height;
 
         byte[] u = new byte[width * height / 4];
@@ -309,11 +297,6 @@ public class MainActivity extends Activity implements OnClickListener {
     }
 
     private byte[] newYuvData420P(byte[] yuvFrame, int width, int height) {
-        if (yuvFrame.length < width * height) {
-            byte[] result = new byte[0];
-            return result;
-        }
-
         int length = width * height;
 
         byte[] u = new byte[width * height / 4];
