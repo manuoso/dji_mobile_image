@@ -1,6 +1,7 @@
 package com.dji.videostreamdecoding;
 
 import android.app.Activity;
+import android.graphics.Bitmap;
 import android.graphics.ImageFormat;
 import android.graphics.Rect;
 import android.graphics.YuvImage;
@@ -15,6 +16,7 @@ import android.os.Message;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -60,6 +62,8 @@ public class MainActivity extends Activity implements OnClickListener {
     private Button mBtThermal;
     private Button mBtSend;
     private SeekBar mSbMSX;
+
+    private ImageView mScreen;
 
     public Handler mainHandler = new Handler(Looper.getMainLooper()) {
         @Override
@@ -127,6 +131,8 @@ public class MainActivity extends Activity implements OnClickListener {
 
         titleTv = (TextView) findViewById(R.id.title_tv);
 
+        mScreen = findViewById(R.id.img_view_display);
+
         mBtVisual.setOnClickListener(this);
         mBtMSX.setOnClickListener(this);
         mBtThermal.setOnClickListener(this);
@@ -187,7 +193,16 @@ public class MainActivity extends Activity implements OnClickListener {
                                     // TODO if NOT decoded...
                                 }else{
                                     mImgDecode = yuvDataDecode(bytes, width, height);
-                                    // TODO if decoded...
+
+                                    // TODO if decoded, convert it in Mat, check this
+
+//                                    Mat myuv = new Mat(height + height / 2, width, CV_8UC1);
+//                                    myuv.put(0,0,bytes);
+//                                    Mat picBGR = new Mat(height, width, CV_8UC4);
+//                                    cvtColor(myuv, picBGR, Imgproc.COLOR_YUV2BGRA_NV21);
+//
+//                                    final Mat image = imgMatDecode.clone();
+
                                 }
 
 //                                int colorFormat = mediaFormat.getInteger(MediaFormat.KEY_COLOR_FORMAT);
@@ -207,11 +222,24 @@ public class MainActivity extends Activity implements OnClickListener {
 //                                    default:
 //                                        break;
 //                                }
+
                             } catch (InterruptedException e) {
                                 // TODO
                             } finally {
                                 mMutex.release();
                             }
+
+//                            runOnUiThread(new Runnable() {
+//                                @Override
+//                                public void run() {
+//                                    // TODO check COLOR
+//                                    Bitmap bmp = Bitmap.createBitmap(image.width(), image.height(), Bitmap.Config.RGB_565);
+//                                    // TODO Utils from OpenCV
+//                                    Utils.matToBitmap(image, bmp);
+//                                    mScreen.setImageBitmap(bmp);
+//                                }
+//                            });
+
                         }
                     }
                 };
