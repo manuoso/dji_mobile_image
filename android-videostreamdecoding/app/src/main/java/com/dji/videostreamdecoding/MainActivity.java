@@ -4,7 +4,9 @@ import android.app.Activity;
 import android.graphics.ImageFormat;
 import android.graphics.Rect;
 import android.graphics.YuvImage;
+import android.media.MediaCodecInfo;
 import android.media.MediaFormat;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
@@ -181,7 +183,25 @@ public class MainActivity extends Activity implements OnClickListener {
                                 mWidth = width;
                                 mHeight = height;
 
-                                mImgDecode = yuvDataDecode(bytes, bytes.length, width, height);
+//                                int colorFormat = mediaFormat.getInteger(MediaFormat.KEY_COLOR_FORMAT);
+//                                switch (colorFormat) {
+//                                    case MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420SemiPlanar:
+//                                        //NV12
+//                                        if (Build.VERSION.SDK_INT <= 23) {
+//                                            mImgDecode = oldYuvData(bytes, width, height);
+//                                        } else {
+//                                            mImgDecode = yuvDataDecode(bytes, width, height);
+//                                        }
+//                                        break;
+//                                    case MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Planar:
+//                                        //YUV420P
+//                                        mImgDecode = newYuvData420P(bytes, width, height);
+//                                        break;
+//                                    default:
+//                                        break;
+//                                }
+
+                                mImgDecode = yuvDataDecode(bytes, width, height);
 
                                 if (mImgDecode.length < width * height) {
                                     // TODO if NOT decoded...
@@ -218,7 +238,77 @@ public class MainActivity extends Activity implements OnClickListener {
 
     /* ************************************************** Decode and utils ************************************************** */
 
-    private byte[] yuvDataDecode(byte[] yuvFrame, int dataSize, int width, int height) {
+    // For android API <= 23
+    private byte[] oldYuvData(byte[] yuvFrame, int width, int height){
+        if (yuvFrame.length < width * height) {
+            byte[] result = new byte[0];
+            return result;
+        }
+
+        byte[] y = new byte[width * height];
+        byte[] u = new byte[width * height / 4];
+        byte[] v = new byte[width * height / 4];
+        byte[] nu = new byte[width * height / 4]; //
+        byte[] nv = new byte[width * height / 4];
+
+        System.arraycopy(yuvFrame, 0, y, 0, y.length);
+        for (int i = 0; i < u.length; i++) {
+            v[i] = yuvFrame[y.length + 2 * i];
+            u[i] = yuvFrame[y.length + 2 * i + 1];
+        }
+        int uvWidth = width / 2;
+        int uvHeight = height / 2;
+        for (int j = 0; j < uvWidth / 2; j++) {
+            for (int i = 0; i < uvHeight / 2; i++) {
+                byte uSample1 = u[i * uvWidth + j];
+                byte uSample2 = u[i * uvWidth + j + uvWidth / 2];
+                byte vSample1 = v[(i + uvHeight / 2) * uvWidth + j];
+                byte vSample2 = v[(i + uvHeight / 2) * uvWidth + j + uvWidth / 2];
+                nu[2 * (i * uvWidth + j)] = uSample1;
+                nu[2 * (i * uvWidth + j) + 1] = uSample1;
+                nu[2 * (i * uvWidth + j) + uvWidth] = uSample2;
+                nu[2 * (i * uvWidth + j) + 1 + uvWidth] = uSample2;
+                nv[2 * (i * uvWidth + j)] = vSample1;
+                nv[2 * (i * uvWidth + j) + 1] = vSample1;
+                nv[2 * (i * uvWidth + j) + uvWidth] = vSample2;
+                nv[2 * (i * uvWidth + j) + 1 + uvWidth] = vSample2;
+            }
+        }
+        //nv21test
+        byte[] bytes = new byte[yuvFrame.length];
+        System.arraycopy(y, 0, bytes, 0, y.length);
+        for (int i = 0; i < u.length; i++) {
+            bytes[y.length + (i * 2)] = nv[i];
+            bytes[y.length + (i * 2) + 1] = nu[i];
+        }
+        return yuvFrame;
+    }
+
+    private byte[] yuvDataDecode(byte[] yuvFrame, int width, int height) {
+        if (yuvFrame.length < width * height) {
+            byte[] result = new byte[0];
+            return result;
+        }
+
+        int length = width * height;
+
+        byte[] u = new byte[width * height / 4];
+        byte[] v = new byte[width * height / 4];
+
+        for (int i = 0; i < u.length; i ++) {
+            u[i] = yuvFrame[length + i];
+            v[i] = yuvFrame[length + u.length + i];
+        }
+
+        for (int i = 0; i < u.length; i++) {
+            yuvFrame[length + 2 * i] = v[i];
+            yuvFrame[length + 2 * i + 1] = u[i];
+        }
+
+        return yuvFrame;
+    }
+
+    private byte[] newYuvData420P(byte[] yuvFrame, int width, int height) {
         if (yuvFrame.length < width * height) {
             byte[] result = new byte[0];
             return result;
