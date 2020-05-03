@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/colorWhite"
+    tools:context="com.dji.videostreamdecodingsample.MainActivity">
+
+    <RelativeLayout
+        android:id="@+id/main_title_rl"
+        android:layout_width="fill_parent"
+        android:layout_height="40dp"
+        android:layout_alignParentBottom="false"
+        android:background="@color/colorPrimary">
+
+        <TextView
+            android:id="@+id/title_tv"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_centerInParent="true"
+            android:text="@string/title_main_activity"
+            android:textColor="@android:color/white" />
+
+    </RelativeLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentLeft="true"
+        android:layout_alignParentTop="false"
+        android:layout_alignParentRight="true"
+        android:layout_alignParentBottom="true"
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/btn_visual"
+            android:layout_width="100dp"
+            android:layout_height="wrap_content"
+            android:clickable="true"
+            android:gravity="center_horizontal|center_vertical"
+            android:text="Visual" />
+
+        <Button
+            android:id="@+id/btn_msx"
+            android:layout_width="100dp"
+            android:layout_height="wrap_content"
+            android:clickable="true"
+            android:gravity="center_horizontal|center_vertical"
+            android:text="MSX" />
+
+        <Button
+            android:id="@+id/btn_thermal"
+            android:layout_width="100dp"
+            android:layout_height="wrap_content"
+            android:gravity="center_horizontal|center_vertical"
+            android:text="Thermal" />
+
+
+        <Button
+            android:id="@+id/btn_send"
+            android:layout_width="100dp"
+            android:layout_height="wrap_content"
+            android:clickable="true"
+            android:gravity="center_horizontal|center_vertical"
+            android:text="Send" />
+
+        <SeekBar
+            android:id="@+id/seekbar_msx"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:indeterminate="false"
+            android:max="100"
+            android:progress="0" />
+
+    </LinearLayout>
+
+</RelativeLayout>
