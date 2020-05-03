@@ -22,6 +22,14 @@ import android.widget.TextView;
 import android.widget.Toast;
 import android.view.View.OnClickListener;
 
+import org.opencv.android.BaseLoaderCallback;
+import org.opencv.android.LoaderCallbackInterface;
+import org.opencv.android.OpenCVLoader;
+import org.opencv.android.Utils;
+import org.opencv.core.CvType;
+import org.opencv.core.Mat;
+import org.opencv.imgproc.Imgproc;
+
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
@@ -40,6 +48,8 @@ import dji.sdk.camera.Camera;
 import dji.sdk.camera.VideoFeeder;
 import dji.sdk.codec.DJICodecManager;
 
+import static org.opencv.imgproc.Imgproc.cvtColor;
+
 public class MainActivity extends Activity implements OnClickListener {
     private static final String TAG = MainActivity.class.getSimpleName();
     private static final int MSG_WHAT_SHOW_TOAST = 0;
@@ -51,6 +61,8 @@ public class MainActivity extends Activity implements OnClickListener {
     private byte[] mImgDecode;
     private int mWidth;
     private int mHeight;
+
+    private Mat mMatImage;
 
     private int mSVal = 0;
 
@@ -64,6 +76,10 @@ public class MainActivity extends Activity implements OnClickListener {
     private SeekBar mSbMSX;
 
     private ImageView mScreen;
+
+//    static {
+//        System.loadLibrary("opencv_java");
+//    }
 
     public Handler mainHandler = new Handler(Looper.getMainLooper()) {
         @Override
@@ -83,11 +99,57 @@ public class MainActivity extends Activity implements OnClickListener {
         }
     };
 
+    private BaseLoaderCallback mLoaderCallback = new BaseLoaderCallback(this) {
+        @Override
+        public void onManagerConnected(int status) {
+            switch (status) {
+                case LoaderCallbackInterface.SUCCESS:
+                {
+//                    try {
+//                        // load cascade file from application resources
+//                        InputStream is = getResources().openRawResource(R.raw.lbpcascade_frontalface);
+//                        File cascadeDir = getDir("cascade", Context.MODE_PRIVATE);
+//                        mCascadeFile = new File(cascadeDir, "lbpcascade_frontalface.xml");
+//                        FileOutputStream os = new FileOutputStream(mCascadeFile);
+//
+//                        byte[] buffer = new byte[4096];
+//                        int bytesRead;
+//                        while ((bytesRead = is.read(buffer)) != -1) {
+//                            os.write(buffer, 0, bytesRead);
+//                        }
+//                        is.close();
+//                        os.close();
+//
+//                        mJavaDetector = new CascadeClassifier(mCascadeFile.getAbsolutePath());
+//                        if (mJavaDetector.empty()) {
+//                            Log.e(TAG, "Failed to load cascade classifier");
+//                            mJavaDetector = null;
+//                        } else
+//                            Log.i(TAG, "Loaded cascade classifier from " + mCascadeFile.getAbsolutePath());
+//
+//                        cascadeDir.delete();
+//
+//                    } catch (IOException e) {
+//                        e.printStackTrace();
+//                        Log.e(TAG, "Failed to load cascade. Exception thrown: " + e);
+//                    }
+                }
+                    break;
+                default:
+                {
+                    super.onManagerConnected(status);
+                }
+                    break;
+            }
+        }
+    };
+
     @Override
     protected void onResume() {
         super.onResume();
         notifyStatusChange();
         createCodec();
+        OpenCVLoader.initAsync(OpenCVLoader.OPENCV_VERSION_3_4_0, this, mLoaderCallback);
     }
 
     @Override
@@ -194,51 +256,52 @@ public class MainActivity extends Activity implements OnClickListener {
                                 }else{
                                     mImgDecode = yuvDataDecode(bytes, width, height);
 
-                                    // TODO if decoded, convert it in Mat, check this
+//                                    int colorFormat = mediaFormat.getInteger(MediaFormat.KEY_COLOR_FORMAT);
+//                                    switch (colorFormat) {
+//                                        case MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420SemiPlanar:
+//                                            //NV12
+//                                            if (Build.VERSION.SDK_INT <= 23) {
+//                                                mImgDecode = oldYuvData(bytes, width, height);
+//                                            } else {
+//                                                mImgDecode = yuvDataDecode(bytes, width, height);
+//                                            }
+//                                            break;
+//                                        case MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Planar:
+//                                            //YUV420P
+//                                            mImgDecode = newYuvData420P(bytes, width, height);
+//                                            break;
+//                                        default:
+//                                            break;
+//                                    }
 
-//                                    Mat myuv = new Mat(height + height / 2, width, CV_8UC1);
-//                                    myuv.put(0,0,bytes);
-//                                    Mat picBGR = new Mat(height, width, CV_8UC4);
+                                    // TODO if decoded, check COLORS
+//                                    Mat myuv = new Mat(height + height / 2, width, CvType.CV_8UC1);
+
+                                    Mat myuv = new Mat(height, width, CvType.CV_8UC1);
+                                    myuv.put(0,0, bytes);
+
+                                    Mat picBGR = new Mat(height, width, CvType.CV_8UC4);
+                                    cvtColor(myuv, picBGR, Imgproc.COLOR_YUV2RGBA_NV12);
+
 //                                    cvtColor(myuv, picBGR, Imgproc.COLOR_YUV2BGRA_NV21);
-//
-//                                    final Mat image = imgMatDecode.clone();
 
+                                    mMatImage = picBGR.clone();
                                 }
-
-//                                int colorFormat = mediaFormat.getInteger(MediaFormat.KEY_COLOR_FORMAT);
-//                                switch (colorFormat) {
-//                                    case MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420SemiPlanar:
-//                                        //NV12
-//                                        if (Build.VERSION.SDK_INT <= 23) {
-//                                            mImgDecode = oldYuvData(bytes, width, height);
-//                                        } else {
-//                                            mImgDecode = yuvDataDecode(bytes, width, height);
-//                                        }
-//                                        break;
-//                                    case MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Planar:
-//                                        //YUV420P
-//                                        mImgDecode = newYuvData420P(bytes, width, height);
-//                                        break;
-//                                    default:
-//                                        break;
-//                                }
-
                             } catch (InterruptedException e) {
                                 // TODO
                             } finally {
                                 mMutex.release();
                             }
 
-//                            runOnUiThread(new Runnable() {
-//                                @Override
-//                                public void run() {
-//                                    // TODO check COLOR
-//                                    Bitmap bmp = Bitmap.createBitmap(image.width(), image.height(), Bitmap.Config.RGB_565);
-//                                    // TODO Utils from OpenCV
-//                                    Utils.matToBitmap(image, bmp);
-//                                    mScreen.setImageBitmap(bmp);
-//                                }
-//                            });
+                            runOnUiThread(new Runnable() {
+                                @Override
+                                public void run() {
+                                    // TODO check COLOR
+                                    Bitmap bmp = Bitmap.createBitmap(mMatImage.width(), mMatImage.height(), Bitmap.Config.RGB_565);
+                                    Utils.matToBitmap(mMatImage, bmp);
+                                    mScreen.setImageBitmap(bmp);
+                                }
+                            });
 
                         }
                     }
