@@ -21,6 +21,7 @@ import android.util.Log;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.SeekBar;
 import android.widget.TextView;
@@ -70,6 +71,10 @@ public class MainActivity extends Activity implements OnClickListener {
 
     private Camera mCamera;
     private SettingsDefinitions.DisplayMode mMode;
+    private boolean mSuccess = false;
+    private PointF mPointF;
+    private TextView mTemp;
+    private EditText mPtCx, mPtCy;
 
     private DJICodecManager mCodecManager = null;
     private DJICodecManager.YuvDataCallback mFrameListener = null;
@@ -210,6 +215,10 @@ public class MainActivity extends Activity implements OnClickListener {
         titleTv = (TextView) findViewById(R.id.title_tv);
 
         mScreen = findViewById(R.id.img_view_display);
+
+        mTemp = (TextView) findViewById(R.id.text_fastcom);
+        mPtCx = (EditText) findViewById(R.id.edit_txt_cx);
+        mPtCy = (EditText) findViewById(R.id.edit_txt_cy);
 
         mBtVisual.setOnClickListener(this);
         mBtMSX.setOnClickListener(this);
@@ -728,33 +737,60 @@ public class MainActivity extends Activity implements OnClickListener {
                         @Override
                         public void onResult(DJIError error) {
                             if (error == null) {
-                                // 666
+                                mSuccess = true;
                             } else {
+                                mSuccess = false;
                                 showToast(error.getDescription());
                             }
                         }
                     });
 
                     PointF center = new PointF();
-                    center.x = 0.1f;
-                    center.y = 0.1f;
+                    center.x = Float.valueOf(mPtCx.getText().toString());
+                    center.y = Float.valueOf(mPtCy.getText().toString());
+                    showToast("CX: " + center.x);
+                    showToast("CY: " + center.y);
+
                     mCamera.setThermalSpotMeteringTargetPoint(center, new CommonCallbacks.CompletionCallback() {
                         @Override
                         public void onResult(DJIError error) {
                             if (error == null) {
-                                // 666
+                                mSuccess = true;
                             } else {
+                                mSuccess = false;
                                 showToast(error.getDescription());
                             }
                         }
                     });
 
-//                    mCamera.setThermalTemperatureCallback(new Camera.TemperatureDataCallback() {
-//                        @Override
-//                        public void onUpdate(float temperature) {
-//                            showToast("Temperature in image center: " + temperature);
-//                        }
-//                    });
+                    mCamera.getThermalSpotMeteringTargetPoint(new CommonCallbacks.CompletionCallbackWith<PointF>() {
+                        @Override
+                        public void onSuccess(PointF pointF) {
+                            mSuccess = true;
+                            mPointF = pointF;
+                        }
+
+                        @Override
+                        public void onFailure(DJIError djiError) {
+                            mSuccess = false;
+                            showToast(djiError.getDescription());
+                        }
+                    });
+
+                    if(mPointF.x == center.x && mPointF.y == center.y){
+                        showToast("Set PT Good");
+                        mCamera.setThermalTemperatureCallback(new Camera.TemperatureDataCallback() {
+                            @Override
+                            public void onUpdate(float temperature) {
+                                runOnUiThread(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        mTemp.setText("Temp: " + temperature);
+                                    }
+                                });
+                            }
+                        });
+                    }
                 }
             }else{
                 showToast("Camera object is null !");

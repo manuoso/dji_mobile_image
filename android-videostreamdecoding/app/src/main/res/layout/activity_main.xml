@@ -81,6 +81,8 @@
             android:id="@+id/btn_measure"
             android:layout_width="100dp"
             android:layout_height="wrap_content"
+            android:clickable="true"
+            android:gravity="center_horizontal|center_vertical"
             android:text="Measure" />
 
         <SeekBar
@@ -93,5 +95,38 @@
             android:progress="0" />
 
     </LinearLayout>
+
+    <TextView
+        android:id="@+id/txt_view_tmp"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginLeft="10dp"
+        android:layout_marginTop="100dp"
+        android:text="Temp:"
+        android:textColor="@color/colorWhite"
+        android:textSize="18sp" />
+
+    <EditText
+        android:id="@+id/edit_txt_cx"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginLeft="10dp"
+        android:layout_marginTop="130dp"
+        android:ems="4"
+        android:inputType="textPersonName"
+        android:text="CX"
+        android:textColor="@color/colorBlack"
+        android:textSize="18sp" />
+
+    <EditText
+        android:id="@+id/edit_txt_cy"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginLeft="10dp"
+        android:layout_marginTop="180dp"
+        android:ems="4"
+        android:inputType="textPersonName"
+        android:text="CY"
+        android:textColor="@color/colorBlack" />
 
 </RelativeLayout>
