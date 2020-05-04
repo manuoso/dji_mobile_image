@@ -184,7 +184,7 @@ public class MainActivity extends Activity implements OnClickListener {
         return success;
     }
 
-    private MatOfRect detectFace(Mat source){
+    private Boolean detectFace(Mat source, MatOfRect detectedFaces){
         if (mAbsoluteFaceSize == 0) {
             int height = source.rows();
             if (Math.round(height * mRelativeFaceSize) > 0) {
@@ -193,12 +193,15 @@ public class MainActivity extends Activity implements OnClickListener {
         }
 
         // Detect faces
-        MatOfRect faces = new MatOfRect();
         if (mJavaDetector != null)
-            mJavaDetector.detectMultiScale(source, faces, 1.05, 4, 2, // TODO: objdetect.CV_HAAR_SCALE_IMAGE
+            mJavaDetector.detectMultiScale(source, detectedFaces, 1.05, 4, 2, // TODO: objdetect.CV_HAAR_SCALE_IMAGE
                     new Size(mAbsoluteFaceSize, mAbsoluteFaceSize), new Size());
 
-        return faces;
+        // Check if a face has been detected
+        if (detectedFaces.toArray().length > 0)
+            return true;
+        else
+            return false;
     }
 
     @Override
@@ -359,13 +362,16 @@ public class MainActivity extends Activity implements OnClickListener {
                                     Mat image_gray = new Mat();
                                     cvtColor(mMatImage, image_gray, Imgproc.COLOR_BGRA2GRAY);
 
-                                    MatOfRect faces = detectFace(image_gray);
-                                    org.opencv.core.Rect[] facesArray = faces.toArray();
 
-                                    // Print faces in mMatImage
-                                    for (int i = 0; i < facesArray.length; i++)
-                                        Imgproc.rectangle(mMatImage, facesArray[i].tl(), facesArray[i].br(), FACE_RECT_COLOR, 3);
+                                    MatOfRect faces = new MatOfRect();
+                                    org.opencv.core.Rect[] facesArray;
+                                    if (detectFace(image_gray, faces)) {
+                                        facesArray = faces.toArray();
 
+                                        // Print faces in mMatImage
+                                        for (int i = 0; i < facesArray.length; i++)
+                                            Imgproc.rectangle(mMatImage, facesArray[i].tl(), facesArray[i].br(), FACE_RECT_COLOR, 3);
+                                    }
                                     // TODO CHECK IF DISABLE IMAGE VIEW DECREASES LAG
                                     runOnUiThread(new Runnable() {
                                         @Override
