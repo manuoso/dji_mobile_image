@@ -15,12 +15,15 @@ import android.os.Looper;
 import android.os.Message;
 import android.util.Log;
 import android.view.View;
+import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.Toast;
 import android.view.View.OnClickListener;
+
+import androidx.annotation.RequiresApi;
 
 import com.dji.videostreamdecoding.fastcom.ImagePublisher;
 
@@ -64,11 +67,12 @@ public class MainActivity extends Activity implements OnClickListener {
     private int mWidth;
     private int mHeight;
 
+    private Semaphore mMutex = new Semaphore(1);
+    private static boolean mInitOpenCV = false;
     private Mat mMatImage;
+    private ImagePublisher mPublisher = null;
 
     private int mSVal = 0;
-
-    private Semaphore mMutex = new Semaphore(1);
 
     private TextView titleTv;
     private Button mBtVisual;
@@ -79,11 +83,13 @@ public class MainActivity extends Activity implements OnClickListener {
 
     private ImageView mScreen;
 
-    private ImagePublisher mPublisher;
-
 //    static {
 //        System.loadLibrary("opencv_java");
 //    }
+
+    static {
+        mInitOpenCV = OpenCVLoader.initDebug();
+    }
 
     public Handler mainHandler = new Handler(Looper.getMainLooper()) {
         @Override
@@ -153,7 +159,17 @@ public class MainActivity extends Activity implements OnClickListener {
         super.onResume();
         notifyStatusChange();
         createCodec();
-        OpenCVLoader.initAsync(OpenCVLoader.OPENCV_VERSION_3_4_0, this, mLoaderCallback);
+//        OpenCVLoader.initAsync(OpenCVLoader.OPENCV_VERSION_3_4_0, this, mLoaderCallback);
+        if (OpenCVLoader.initDebug()) {
+            mLoaderCallback.onManagerConnected(LoaderCallbackInterface.SUCCESS);
+        } else {
+            OpenCVLoader.initAsync(OpenCVLoader.OPENCV_VERSION_3_4_0, this, mLoaderCallback);
+            try {
+                Thread.sleep(3000);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
     }
 
     @Override
@@ -164,6 +180,7 @@ public class MainActivity extends Activity implements OnClickListener {
     @Override
     protected void onDestroy() {
         cleanCodecManager();
+        // TODO method for disconnect socket publisher
         super.onDestroy();
     }
 
@@ -171,10 +188,9 @@ public class MainActivity extends Activity implements OnClickListener {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
         initUi();
-
-        mPublisher = new ImagePublisher(8888);
     }
 
     private void showToast(String s) {
@@ -206,6 +222,10 @@ public class MainActivity extends Activity implements OnClickListener {
         mBtThermal.setOnClickListener(this);
         mBtSend.setOnClickListener(this);
 
+        if( mPublisher == null){
+            mPublisher = new ImagePublisher(8888);
+        }
+
         mSbMSX.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
@@ -236,7 +256,7 @@ public class MainActivity extends Activity implements OnClickListener {
         if (product == null || !product.isConnected()) {
             showToast("Disconnected");
         } else {
-            configureVisualImage();
+//            configureVisualImage();
         }
     }
 
@@ -260,7 +280,7 @@ public class MainActivity extends Activity implements OnClickListener {
                                 if (bytes.length < width * height) {
                                     // TODO if NOT decoded...
                                 }else{
-                                    mImgDecode = yuvDataDecode(bytes, width, height);
+                                    mImgDecode = newYuvData420P(bytes, width, height);
 
 //                                    int colorFormat = mediaFormat.getInteger(MediaFormat.KEY_COLOR_FORMAT);
 //                                    switch (colorFormat) {
@@ -269,7 +289,7 @@ public class MainActivity extends Activity implements OnClickListener {
 //                                            if (Build.VERSION.SDK_INT <= 23) {
 //                                                mImgDecode = oldYuvData(bytes, width, height);
 //                                            } else {
-//                                                mImgDecode = yuvDataDecode(bytes, width, height);
+//                                                mImgDecode = yuvData(bytes, width, height);
 //                                            }
 //                                            break;
 //                                        case MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Planar:
@@ -280,39 +300,33 @@ public class MainActivity extends Activity implements OnClickListener {
 //                                            break;
 //                                    }
 
-                                    // TODO if decoded, check COLORS
-//                                    Mat myuv = new Mat(height + height / 2, width, CvType.CV_8UC1);
+                                    Mat myuv = new Mat(height + height / 2, width, CvType.CV_8UC1);
+                                    myuv.put(0,0, mImgDecode);
 
-                                    Mat myuv = new Mat(height, width, CvType.CV_8UC1);
-                                    myuv.put(0,0, bytes);
+                                    Mat pic = new Mat(height, width, CvType.CV_8UC4);
+                                    cvtColor(myuv, pic, Imgproc.COLOR_YUV2BGRA_NV12);
 
-                                    Mat picBGR = new Mat(height, width, CvType.CV_8UC4);
-                                    cvtColor(myuv, picBGR, Imgproc.COLOR_YUV2RGBA_NV12);
+                                    mMatImage = pic.clone();
 
-//                                    cvtColor(myuv, picBGR, Imgproc.COLOR_YUV2BGRA_NV21);
+                                    runOnUiThread(new Runnable() {
+                                        @Override
+                                        public void run() {
+                                            Bitmap bmp = Bitmap.createBitmap(mMatImage.width(), mMatImage.height(), Bitmap.Config.ARGB_8888);
+                                            Utils.matToBitmap(mMatImage, bmp);
+                                            mScreen.setImageBitmap(bmp);
+                                        }
+                                    });
 
-                                    mMatImage = picBGR.clone();
+                                    // TODO CHECK IMAGE CONVERSION
+                                    Mat sendImage = mMatImage.clone();
+                                    cvtColor(sendImage, sendImage, Imgproc.COLOR_BGRA2BGR);
+                                    mPublisher.publish(sendImage);
                                 }
                             } catch (InterruptedException e) {
-                                // TODO
-                                Mat sendImage = new Mat();
-                                cvtColor(mMatImage, sendImage, Imgproc.COLOR_BGR2RGB);
-                                mPublisher.publish(sendImage);
 
                             } finally {
                                 mMutex.release();
                             }
-
-                            runOnUiThread(new Runnable() {
-                                @Override
-                                public void run() {
-                                    // TODO check COLOR
-                                    Bitmap bmp = Bitmap.createBitmap(mMatImage.width(), mMatImage.height(), Bitmap.Config.RGB_565);
-                                    Utils.matToBitmap(mMatImage, bmp);
-                                    mScreen.setImageBitmap(bmp);
-                                }
-                            });
-
                         }
                     }
                 };
@@ -378,20 +392,20 @@ public class MainActivity extends Activity implements OnClickListener {
         return yuvFrame;
     }
 
-    private byte[] yuvDataDecode(byte[] yuvFrame, int width, int height) {
+    private byte[] yuvData(byte[] yuvFrame, int width, int height) {
         int length = width * height;
 
         byte[] u = new byte[width * height / 4];
         byte[] v = new byte[width * height / 4];
 
-        for (int i = 0; i < u.length; i ++) {
-            u[i] = yuvFrame[length + i];
-            v[i] = yuvFrame[length + u.length + i];
+        for (int i = 0; i < u.length; i++) {
+            v[i] = yuvFrame[length + 2 * i];
+            u[i] = yuvFrame[length + 2 * i + 1];
         }
 
         for (int i = 0; i < u.length; i++) {
-            yuvFrame[length + 2 * i] = v[i];
-            yuvFrame[length + 2 * i + 1] = u[i];
+            yuvFrame[length + 2 * i] = u[i];
+            yuvFrame[length + 2 * i + 1] = v[i];
         }
 
         return yuvFrame;
