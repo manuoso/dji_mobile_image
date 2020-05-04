@@ -22,6 +22,8 @@ import android.widget.TextView;
 import android.widget.Toast;
 import android.view.View.OnClickListener;
 
+import com.dji.videostreamdecoding.fastcom.ImagePublisher;
+
 import org.opencv.android.BaseLoaderCallback;
 import org.opencv.android.LoaderCallbackInterface;
 import org.opencv.android.OpenCVLoader;
@@ -76,6 +78,8 @@ public class MainActivity extends Activity implements OnClickListener {
     private SeekBar mSbMSX;
 
     private ImageView mScreen;
+
+    private ImagePublisher mPublisher;
 
 //    static {
 //        System.loadLibrary("opencv_java");
@@ -169,6 +173,8 @@ public class MainActivity extends Activity implements OnClickListener {
         setContentView(R.layout.activity_main);
 
         initUi();
+
+        mPublisher = new ImagePublisher(8888);
     }
 
     private void showToast(String s) {
@@ -289,6 +295,10 @@ public class MainActivity extends Activity implements OnClickListener {
                                 }
                             } catch (InterruptedException e) {
                                 // TODO
+                                Mat sendImage = new Mat();
+                                cvtColor(mMatImage, sendImage, Imgproc.COLOR_BGR2RGB);
+                                mPublisher.publish(sendImage);
+
                             } finally {
                                 mMutex.release();
                             }

@@ -32,6 +32,18 @@
         android:textStyle="bold" />
 
     <TextView
+        android:id="@+id/text_product_info2"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="150dp"
+        android:gravity="center"
+        android:text="@string/product_information"
+        android:textColor="@android:color/black"
+        android:textSize="20dp"
+        android:textStyle="bold" />
+
+    <TextView
         android:id="@+id/text_model_available"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -45,7 +57,7 @@
         android:layout_width="150dp"
         android:layout_height="55dp"
         android:layout_centerHorizontal="true"
-        android:layout_marginTop="260dp"
+        android:layout_marginTop="350dp"
         android:background="@drawable/round_btn"
         android:text="Open"
         android:textColor="@color/colorWhite"
@@ -66,10 +78,39 @@
         android:layout_alignParentTop="true"
         android:layout_centerHorizontal="true"
         android:layout_marginTop="20dp"
-        android:text="GRVC App CODIV-19"
+        android:text="GRVC App COVID-19"
         android:textAppearance="?android:attr/textAppearanceSmall"
         android:textColor="@color/colorBlack"
         android:textSize="20dp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/text_fastcom"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentStart="true"
+        android:layout_alignParentLeft="true"
+        android:layout_alignParentTop="true"
+        android:layout_marginStart="99dp"
+        android:layout_marginLeft="99dp"
+        android:layout_marginTop="288dp"
+        android:text="IP: "
+        android:textSize="18sp" />
+
+    <TextView
+        android:id="@+id/textView3"
+        android:layout_width="wrap_content"
+        android:layout_height="36dp"
+        android:layout_alignParentStart="true"
+        android:layout_alignParentLeft="true"
+        android:layout_alignParentTop="true"
+        android:layout_centerHorizontal="true"
+        android:layout_marginStart="86dp"
+        android:layout_marginLeft="86dp"
+        android:layout_marginTop="243dp"
+        android:text="Device parameters FASTCOM"
+        android:textColor="@color/colorBlack"
+        android:textSize="18sp"
         android:textStyle="bold" />
 
 </RelativeLayout>

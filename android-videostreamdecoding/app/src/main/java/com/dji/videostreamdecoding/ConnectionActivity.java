@@ -5,6 +5,8 @@ import android.app.Activity;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.hardware.usb.UsbManager;
+import android.net.wifi.WifiInfo;
+import android.net.wifi.WifiManager;
 import android.os.AsyncTask;
 import android.os.Build;
 import android.os.Bundle;
@@ -73,6 +75,8 @@ public class ConnectionActivity extends Activity implements View.OnClickListener
     private AtomicBoolean isRegistrationInProgress = new AtomicBoolean(false);
     private List<String> missingPermission = new ArrayList<>();
 
+    private String mIP;
+    private TextView mIPMobile;
 
     //region Registration n' Permissions Helpers
 
@@ -257,6 +261,15 @@ public class ConnectionActivity extends Activity implements View.OnClickListener
         mBtnOpen.setEnabled(false);
         ((TextView)findViewById(R.id.textView2)).setText(getResources().getString(R.string.sdk_version, DJISDKManager.getInstance().getSDKVersion()));
 
+        WifiManager wm = (WifiManager) getApplicationContext().getSystemService(WIFI_SERVICE);
+        WifiInfo info = wm.getConnectionInfo();
+        mIP = "Error reading IP";
+
+        if (info != null && info.getIpAddress() != 0)
+            mIP = android.text.format.Formatter.formatIpAddress(info.getIpAddress());
+
+        mIPMobile = (TextView) findViewById(R.id.text_fastcom);
+        mIPMobile.setText("Current IP: " + mIP + ":8888"); // 666
     }
 
     private void updateTitleBar() {
