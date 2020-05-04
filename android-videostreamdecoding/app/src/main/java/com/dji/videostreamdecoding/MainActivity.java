@@ -308,6 +308,7 @@ public class MainActivity extends Activity implements OnClickListener {
 
                                     mMatImage = pic.clone();
 
+                                    // TODO CHECK IF DISABLE IMAGE VIEW DECREASES LAG
                                     runOnUiThread(new Runnable() {
                                         @Override
                                         public void run() {
