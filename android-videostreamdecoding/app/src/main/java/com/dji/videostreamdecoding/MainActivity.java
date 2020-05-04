@@ -5,6 +5,7 @@ import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.ImageFormat;
 
+import android.graphics.PointF;
 import android.graphics.RectF;
 import android.graphics.YuvImage;
 import android.graphics.Rect;
@@ -25,9 +26,6 @@ import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.Toast;
 import android.view.View.OnClickListener;
-
-import androidx.annotation.NonNull;
-import androidx.annotation.RequiresApi;
 
 import com.dji.videostreamdecoding.fastcom.ImagePublisher;
 
@@ -50,7 +48,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
-import java.util.List;
 import java.util.concurrent.Semaphore;
 
 import dji.common.camera.SettingsDefinitions;
@@ -62,7 +59,6 @@ import dji.common.util.CommonCallbacks;
 import dji.midware.usb.P3.UsbAccessoryService;
 import dji.sdk.base.BaseProduct;
 import dji.sdk.camera.Camera;
-import dji.sdk.camera.VideoFeeder;
 import dji.sdk.codec.DJICodecManager;
 
 import static org.opencv.imgproc.Imgproc.cvtColor;
@@ -72,6 +68,9 @@ public class MainActivity extends Activity implements OnClickListener {
     private static final int MSG_WHAT_SHOW_TOAST = 0;
     private static final int MSG_WHAT_UPDATE_TITLE = 1;
 
+    private Camera mCamera;
+    private SettingsDefinitions.DisplayMode mMode;
+
     private DJICodecManager mCodecManager = null;
     private DJICodecManager.YuvDataCallback mFrameListener = null;
     private int mCount;
@@ -79,18 +78,17 @@ public class MainActivity extends Activity implements OnClickListener {
     private int mWidth;
     private int mHeight;
 
+    private Thread mThreadScreen, mThreadSend;
+
     private Semaphore mMutex = new Semaphore(1);
     private static boolean mInitOpenCV = false;
-    private Mat mMatImage;
+    private Mat mMatImage = null;
     private ImagePublisher mPublisher = null;
 
     private int mSVal = 0;
 
     private TextView titleTv;
-    private Button mBtVisual;
-    private Button mBtMSX;
-    private Button mBtThermal;
-    private Button mBtSend;
+    private Button mBtVisual, mBtMSX, mBtThermal, mBtTkSC, mBtMeasure;
     private SeekBar mSbMSX;
 
     private ImageView mScreen;
@@ -105,11 +103,6 @@ public class MainActivity extends Activity implements OnClickListener {
     private int   mAbsoluteFaceSize;
 
     private RectF mNormalizedFaceRect;
-
-
-//    static {
-//        System.loadLibrary("opencv_java");
-//    }
 
     static {
         mInitOpenCV = OpenCVLoader.initDebug();
@@ -151,91 +144,10 @@ public class MainActivity extends Activity implements OnClickListener {
         }
     };
 
-    private Boolean configureMultiscaleFaceDetector(){
-        // Configure face relative size
-        mRelativeFaceSize       = 0.4f;
-        mAbsoluteFaceSize       = 0;
-
-        Boolean success = false;
-        try {
-                // load cascade file from application resources
-                InputStream is = getResources().openRawResource(R.raw.lbpcascade_frontalface);
-                File cascadeDir = getDir("cascade", Context.MODE_PRIVATE);
-                mCascadeFile = new File(cascadeDir, "lbpcascade_frontalface.xml");
-                FileOutputStream os = new FileOutputStream(mCascadeFile);
-
-                byte[] buffer = new byte[4096];
-                int bytesRead;
-                while ((bytesRead = is.read(buffer)) != -1) {
-                    os.write(buffer, 0, bytesRead);
-                }
-                is.close();
-                os.close();
-
-                mJavaDetector = new CascadeClassifier(mCascadeFile.getAbsolutePath());
-                if (mJavaDetector.empty()) {
-                    Log.e(TAG, "Failed to load cascade classifier");
-                    mJavaDetector = null;
-                } else
-                    Log.i(TAG, "Loaded cascade classifier from " + mCascadeFile.getAbsolutePath());
-
-                cascadeDir.delete();
-                success = true;
-
-        } catch (IOException e) {
-            e.printStackTrace();
-        Log.e(TAG, "Failed to load cascade. Exception thrown: " + e);
-        }
-
-        return success;
-    }
-
-    private Boolean detectFace(Mat source, MatOfRect detectedFaces){
-        if (mAbsoluteFaceSize == 0) {
-            int height = source.rows();
-            if (Math.round(height * mRelativeFaceSize) > 0) {
-                mAbsoluteFaceSize = Math.round(height * mRelativeFaceSize);
-            }
-        }
-
-        // Detect faces
-        if (mJavaDetector != null)
-            mJavaDetector.detectMultiScale(source, detectedFaces, 1.05, 4, 2, // TODO: objdetect.CV_HAAR_SCALE_IMAGE
-                    new Size(mAbsoluteFaceSize, mAbsoluteFaceSize), new Size());
-
-        // Check if a face has been detected
-        if (detectedFaces.toArray().length > 0)
-            return true;
-        else
-            return false;
-    }
-
-    private void updateDetection(org.opencv.core.Rect faceDetected){
-        // Normalize detection
-        float x_norm = faceDetected.x / mWidth;
-        float y_norm = faceDetected.y / mHeight;
-        float width_norm = faceDetected.width / mWidth;
-        float height_norm = faceDetected.height / mHeight;
-
-        mNormalizedFaceRect = new RectF(x_norm,y_norm,width_norm,height_norm);
-    }
-
     @Override
     protected void onResume() {
         super.onResume();
         notifyStatusChange();
-        createCodec();
-//        OpenCVLoader.initAsync(OpenCVLoader.OPENCV_VERSION_3_4_0, this, mLoaderCallback);
-        if (OpenCVLoader.initDebug()) {
-            mLoaderCallback.onManagerConnected(LoaderCallbackInterface.SUCCESS);
-        } else {
-            OpenCVLoader.initAsync(OpenCVLoader.OPENCV_VERSION_3_4_0, this, mLoaderCallback);
-            try {
-                Thread.sleep(3000);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-        }
     }
 
     @Override
@@ -247,6 +159,7 @@ public class MainActivity extends Activity implements OnClickListener {
     protected void onDestroy() {
         cleanCodecManager();
         // TODO method for disconnect socket publisher
+        closeThreads();
         super.onDestroy();
     }
 
@@ -256,7 +169,21 @@ public class MainActivity extends Activity implements OnClickListener {
         setContentView(R.layout.activity_main);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
+        if (OpenCVLoader.initDebug()) {
+            mLoaderCallback.onManagerConnected(LoaderCallbackInterface.SUCCESS);
+        } else {
+            OpenCVLoader.initAsync(OpenCVLoader.OPENCV_VERSION_3_4_0, this, mLoaderCallback);
+            try {
+                Thread.sleep(3000);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+
         initUi();
+
+        createCodec();
+        createThreads();
     }
 
     private void showToast(String s) {
@@ -275,7 +202,8 @@ public class MainActivity extends Activity implements OnClickListener {
         mBtVisual = (Button) findViewById(R.id.btn_visual);
         mBtMSX = (Button) findViewById(R.id.btn_msx);
         mBtThermal = (Button) findViewById(R.id.btn_thermal);
-        mBtSend = (Button) findViewById(R.id.btn_send);
+        mBtTkSC = (Button) findViewById(R.id.btn_sc);
+        mBtMeasure = (Button) findViewById(R.id.btn_measure);
 
         mSbMSX = (SeekBar) findViewById(R.id.seekbar_msx);
 
@@ -286,7 +214,8 @@ public class MainActivity extends Activity implements OnClickListener {
         mBtVisual.setOnClickListener(this);
         mBtMSX.setOnClickListener(this);
         mBtThermal.setOnClickListener(this);
-        mBtSend.setOnClickListener(this);
+        mBtTkSC.setOnClickListener(this);
+        mBtMeasure.setOnClickListener(this);
 
         if( mPublisher == null){
             mPublisher = new ImagePublisher(8888);
@@ -322,8 +251,79 @@ public class MainActivity extends Activity implements OnClickListener {
         if (product == null || !product.isConnected()) {
             showToast("Disconnected");
         } else {
-//            configureVisualImage();
+            if (!product.getModel().equals(Model.UNKNOWN_AIRCRAFT)) {
+                mCamera = product.getCameras().get(1);
+            }
         }
+    }
+
+    private Boolean configureMultiscaleFaceDetector(){
+        // Configure face relative size
+        mRelativeFaceSize       = 0.4f;
+        mAbsoluteFaceSize       = 0;
+
+        Boolean success = false;
+        try {
+            // load cascade file from application resources
+            InputStream is = getResources().openRawResource(R.raw.lbpcascade_frontalface);
+            File cascadeDir = getDir("cascade", Context.MODE_PRIVATE);
+            mCascadeFile = new File(cascadeDir, "lbpcascade_frontalface.xml");
+            FileOutputStream os = new FileOutputStream(mCascadeFile);
+
+            byte[] buffer = new byte[4096];
+            int bytesRead;
+            while ((bytesRead = is.read(buffer)) != -1) {
+                os.write(buffer, 0, bytesRead);
+            }
+            is.close();
+            os.close();
+
+            mJavaDetector = new CascadeClassifier(mCascadeFile.getAbsolutePath());
+            if (mJavaDetector.empty()) {
+                Log.e(TAG, "Failed to load cascade classifier");
+                mJavaDetector = null;
+            } else
+                Log.i(TAG, "Loaded cascade classifier from " + mCascadeFile.getAbsolutePath());
+
+            cascadeDir.delete();
+            success = true;
+
+        } catch (IOException e) {
+            e.printStackTrace();
+            Log.e(TAG, "Failed to load cascade. Exception thrown: " + e);
+        }
+
+        return success;
+    }
+
+    private Boolean detectFace(Mat source, MatOfRect detectedFaces){
+        if (mAbsoluteFaceSize == 0) {
+            int height = source.rows();
+            if (Math.round(height * mRelativeFaceSize) > 0) {
+                mAbsoluteFaceSize = Math.round(height * mRelativeFaceSize);
+            }
+        }
+
+        // Detect faces
+        if (mJavaDetector != null)
+            mJavaDetector.detectMultiScale(source, detectedFaces, 1.05, 4, 2, // TODO: objdetect.CV_HAAR_SCALE_IMAGE
+                    new Size(mAbsoluteFaceSize, mAbsoluteFaceSize), new Size());
+
+        // Check if a face has been detected
+        if (detectedFaces.toArray().length > 0)
+            return true;
+        else
+            return false;
+    }
+
+    private void updateDetection(org.opencv.core.Rect faceDetected){
+        // Normalize detection
+        float x_norm = faceDetected.x / mWidth;
+        float y_norm = faceDetected.y / mHeight;
+        float width_norm = faceDetected.width / mWidth;
+        float height_norm = faceDetected.height / mHeight;
+
+        mNormalizedFaceRect = new RectF(x_norm,y_norm,width_norm,height_norm);
     }
 
     private void createCodec(){
@@ -346,26 +346,25 @@ public class MainActivity extends Activity implements OnClickListener {
                                 if (bytes.length < width * height) {
                                     // TODO if NOT decoded...
                                 }else{
-                                    mImgDecode = newYuvData420P(bytes, width, height);
+                                    int colorFormat = mediaFormat.getInteger(MediaFormat.KEY_COLOR_FORMAT);
+                                    switch (colorFormat) {
+                                        case MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420SemiPlanar:
+                                            //NV12
+                                            if (Build.VERSION.SDK_INT <= 23) {
+                                                mImgDecode = oldYuvData(bytes, width, height);
+                                            } else {
+                                                mImgDecode = yuvData(bytes, width, height);
+                                            }
+                                            break;
+                                        case MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Planar:
+                                            //YUV420P
+                                            mImgDecode = newYuvData420P(bytes, width, height);
+                                            break;
+                                        default:
+                                            break;
+                                    }
 
-//                                    int colorFormat = mediaFormat.getInteger(MediaFormat.KEY_COLOR_FORMAT);
-//                                    switch (colorFormat) {
-//                                        case MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420SemiPlanar:
-//                                            //NV12
-//                                            if (Build.VERSION.SDK_INT <= 23) {
-//                                                mImgDecode = oldYuvData(bytes, width, height);
-//                                            } else {
-//                                                mImgDecode = yuvData(bytes, width, height);
-//                                            }
-//                                            break;
-//                                        case MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Planar:
-//                                            //YUV420P
-//                                            mImgDecode = newYuvData420P(bytes, width, height);
-//                                            break;
-//                                        default:
-//                                            break;
-//                                    }
-
+                                    // TODO CHECK CONVERSION TIMES...
                                     Mat myuv = new Mat(height + height / 2, width, CvType.CV_8UC1);
                                     myuv.put(0,0, mImgDecode);
 
@@ -375,35 +374,20 @@ public class MainActivity extends Activity implements OnClickListener {
                                     mMatImage = pic.clone();
 
                                     // Detect faces in gray image
-                                    Mat image_gray = new Mat();
-                                    cvtColor(mMatImage, image_gray, Imgproc.COLOR_BGRA2GRAY);
-
-
-                                    MatOfRect faces = new MatOfRect();
-                                    org.opencv.core.Rect[] facesArray;
-                                    if (detectFace(image_gray, faces)) {
-                                        facesArray = faces.toArray();
-
-                                        // Print faces in mMatImage
-                                        for (int i = 0; i < facesArray.length; i++)
-                                            Imgproc.rectangle(mMatImage, facesArray[i].tl(), facesArray[i].br(), FACE_RECT_COLOR, 3);
-
-                                        updateDetection(facesArray[0]);
-                                    }
-                                    // TODO CHECK IF DISABLE IMAGE VIEW DECREASES LAG
-                                    runOnUiThread(new Runnable() {
-                                        @Override
-                                        public void run() {
-                                            Bitmap bmp = Bitmap.createBitmap(mMatImage.width(), mMatImage.height(), Bitmap.Config.ARGB_8888);
-                                            Utils.matToBitmap(mMatImage, bmp);
-                                            mScreen.setImageBitmap(bmp);
-                                        }
-                                    });
-
-                                    // TODO CHECK IMAGE CONVERSION
-                                    Mat sendImage = mMatImage.clone();
-                                    cvtColor(sendImage, sendImage, Imgproc.COLOR_BGRA2BGR);
-                                    mPublisher.publish(sendImage);
+//                                    Mat image_gray = new Mat();
+//                                    cvtColor(mMatImage, image_gray, Imgproc.COLOR_BGRA2GRAY);
+//
+//                                    MatOfRect faces = new MatOfRect();
+//                                    org.opencv.core.Rect[] facesArray;
+//                                    if (detectFace(image_gray, faces)) {
+//                                        facesArray = faces.toArray();
+//
+//                                        // Print faces in mMatImage
+//                                        for (int i = 0; i < facesArray.length; i++)
+//                                            Imgproc.rectangle(mMatImage, facesArray[i].tl(), facesArray[i].br(), FACE_RECT_COLOR, 3);
+//
+//                                        updateDetection(facesArray[0]);
+//                                    }
                                 }
                             } catch (InterruptedException e) {
 
@@ -418,7 +402,6 @@ public class MainActivity extends Activity implements OnClickListener {
             mCodecManager = new DJICodecManager(getApplicationContext(), null, 0, 0, UsbAccessoryService.VideoStreamSource.Camera);
             mCodecManager.enabledYuvData(true);
             mCodecManager.setYuvDataCallback(mFrameListener);
-
         }
     }
 
@@ -430,6 +413,78 @@ public class MainActivity extends Activity implements OnClickListener {
             mCodecManager.cleanSurface();
             mCodecManager.destroyCodec();
         }
+    }
+
+    private void createThreads(){
+
+        Runnable runnableScreen = new Runnable() {
+            public void run() {
+                while(true){
+                    try {
+                        mMutex.acquire();
+                        if(mMatImage != null){
+                            // TODO CHECK IF DISABLE IMAGE VIEW DECREASES LAG
+                            runOnUiThread(new Runnable() {
+                                @Override
+                                public void run() {
+                                    Bitmap bmp = Bitmap.createBitmap(mMatImage.width(), mMatImage.height(), Bitmap.Config.ARGB_8888);
+                                    Utils.matToBitmap(mMatImage, bmp);
+                                    mScreen.setImageBitmap(bmp);
+                                }
+                            });
+                        }
+                    } catch (InterruptedException e) {
+                        // TODO
+                    } finally {
+                        mMutex.release();
+                    }
+
+                    try {
+                        Thread.sleep(30);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
+            }
+        };
+
+        Runnable runnableSend = new Runnable() {
+            public void run() {
+                while(true){
+                    try {
+                        mMutex.acquire();
+                        if(mMatImage != null){
+                            // TODO CHECK IMAGE CONVERSION
+                            Mat sendImage = mMatImage.clone();
+                            cvtColor(sendImage, sendImage, Imgproc.COLOR_BGRA2BGR);
+                            mPublisher.publish(sendImage);
+                        }
+                    } catch (InterruptedException e) {
+                        // TODO
+                    } finally {
+                        mMutex.release();
+                    }
+
+                    try {
+                        Thread.sleep(30);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
+            }
+        };
+
+        mThreadScreen = new Thread(runnableScreen);
+        mThreadSend = new Thread(runnableSend);
+
+        mThreadScreen.start();
+        mThreadSend.start();
+
+    }
+
+    private void closeThreads(){
+        mThreadScreen.interrupt();
+        mThreadSend.interrupt();
     }
 
     /* ************************************************** Decode and utils ************************************************** */
@@ -553,119 +608,76 @@ public class MainActivity extends Activity implements OnClickListener {
     /* ************************************************** Click and Configure Camera ************************************************** */
 
     private void configureThermalImage(){
-        BaseProduct product = VideoDecodingApplication.getProductInstance();
-
-        if (!product.getModel().equals(Model.UNKNOWN_AIRCRAFT)) {
-
-            Camera camera = product.getCameras().get(1);
-
-            if (camera.isThermalCamera()) {
-                if (camera != null) {
-                    camera.setDisplayMode(SettingsDefinitions.DisplayMode.THERMAL_ONLY, new CommonCallbacks.CompletionCallback() {
-                        @Override
-                        public void onResult(DJIError error) {
-
-                            if (error == null) {
-                                showToast("Switch to thermal Succeeded");
-                            } else {
-                                showToast(error.getDescription());
-                            }
-                        }
-                    });
-
-                camera.setThermalMeasurementMode(ThermalMeasurementMode.AREA_METERING, new CommonCallbacks.CompletionCallback() {
+        if (mCamera.isThermalCamera()) {
+            if (mCamera != null) {
+                mCamera.setDisplayMode(SettingsDefinitions.DisplayMode.THERMAL_ONLY, new CommonCallbacks.CompletionCallback() {
                     @Override
                     public void onResult(DJIError error) {
-
                         if (error == null) {
-                            // 666
+                            showToast("Switch to thermal Succeeded");
                         } else {
                             showToast(error.getDescription());
                         }
                     }
                 });
 
-                camera.setThermalMeteringArea(mNormalizedFaceRect, new CommonCallbacks.CompletionCallback() {
-                    @Override
-                    public void onResult(DJIError error) {
+//                mCamera.setThermalMeasurementMode(ThermalMeasurementMode.AREA_METERING, new CommonCallbacks.CompletionCallback() {
+//                    @Override
+//                    public void onResult(DJIError error) {
+//
+//                        if (error == null) {
+//                            // 666
+//                        } else {
+//                            showToast(error.getDescription());
+//                        }
+//                    }
+//                });
+//
+//                mCamera.setThermalMeteringArea(mNormalizedFaceRect, new CommonCallbacks.CompletionCallback() {
+//                    @Override
+//                    public void onResult(DJIError error) {
+//
+//                        if (error == null) {
+//                            // 666
+//                        } else {
+//                            showToast(error.getDescription());
+//                        }
+//                    }
+//
+//                });
+//
+//                mCamera.setThermalAreaTemperatureAggregationsCallback(new ThermalAreaTemperatureAggregations.Callback(){
+//
+//                    @Override
+//                    public void onUpdate(/*@NonNull*/ ThermalAreaTemperatureAggregations thermalAreaMasurement) {
+//                        float avgTemperature = thermalAreaMasurement.getAverageAreaTemperature();
+//                        showToast("AVG TEMP IN DETECTION: " + avgTemperature);
+//                    }
+//                });
+//
+//                mCamera.setThermalTemperatureCallback(new Camera.TemperatureDataCallback() {
+//                    @Override
+//                    public void onUpdate(float temperature) {
+//                        showToast("Temperature in image center: " + temperature);
+//                    }
+//                });
 
-                        if (error == null) {
-                            // 666
-                        } else {
-                            showToast(error.getDescription());
-                        }
-                    }
-
-                });
-
-                camera.setThermalAreaTemperatureAggregationsCallback(new ThermalAreaTemperatureAggregations.Callback(){
-
-                    @Override
-                    public void onUpdate(/*@NonNull*/ ThermalAreaTemperatureAggregations thermalAreaMasurement) {
-                        float avgTemperature = thermalAreaMasurement.getAverageAreaTemperature();
-                        showToast("AVG TEMP IN DETECTION: " + avgTemperature);
-                    }
-                });
-
-                camera.setThermalTemperatureCallback(new Camera.TemperatureDataCallback() {
-                    @Override
-                    public void onUpdate(float temperature) {
-                        showToast("Temperature in image center: " + temperature);
-                    }
-                });
-
-                }else{
-                    showToast("Camera object is null !");
-                }
             }else{
-                showToast("Camera 1 is not thermal.");
+                showToast("Camera object is null !");
             }
+        }else{
+            showToast("Camera 1 is not thermal.");
         }
     }
 
     private void configureMSXImage(){
-        BaseProduct product = VideoDecodingApplication.getProductInstance();
-
-        if (!product.getModel().equals(Model.UNKNOWN_AIRCRAFT)) {
-
-            Camera camera = product.getCameras().get(1);
-
-            if (camera.isThermalCamera()){
-                if (camera != null){
-                    camera.setDisplayMode(SettingsDefinitions.DisplayMode.MSX, new CommonCallbacks.CompletionCallback() {
-                        @Override
-                        public void onResult(DJIError error) {
-
-                            if (error == null) {
-                                showToast("Switch to MSX Succeeded");
-                            } else {
-                                showToast(error.getDescription());
-                            }
-                        }
-                    });
-                }else{
-                    showToast("Camera object is null !");
-                }
-            }else{
-                showToast("Camera 1 is not thermal.");
-            }
-        }
-    }
-
-    private void configureVisualImage(){
-        BaseProduct product = VideoDecodingApplication.getProductInstance();
-
-        if (!product.getModel().equals(Model.UNKNOWN_AIRCRAFT)) {
-
-            Camera camera = product.getCameras().get(1);
-
-            if (camera != null){
-                camera.setDisplayMode(SettingsDefinitions.DisplayMode.VISUAL_ONLY, new CommonCallbacks.CompletionCallback() {
+        if (mCamera.isThermalCamera()){
+            if (mCamera != null){
+                mCamera.setDisplayMode(SettingsDefinitions.DisplayMode.MSX, new CommonCallbacks.CompletionCallback() {
                     @Override
                     public void onResult(DJIError error) {
-
                         if (error == null) {
-                            showToast("Switch to visual Succeeded");
+                            showToast("Switch to MSX Succeeded");
                         } else {
                             showToast(error.getDescription());
                         }
@@ -674,6 +686,81 @@ public class MainActivity extends Activity implements OnClickListener {
             }else{
                 showToast("Camera object is null !");
             }
+        }else{
+            showToast("Camera 1 is not thermal.");
+        }
+    }
+
+    private void configureVisualImage(){
+        if (mCamera != null){
+            mCamera.setDisplayMode(SettingsDefinitions.DisplayMode.VISUAL_ONLY, new CommonCallbacks.CompletionCallback() {
+                @Override
+                public void onResult(DJIError error) {
+                    if (error == null) {
+                        showToast("Switch to visual Succeeded");
+                    } else {
+                        showToast(error.getDescription());
+                    }
+                }
+            });
+        }else{
+            showToast("Camera object is null !");
+        }
+    }
+
+    private void setMeasurePoint(){
+        if (mCamera.isThermalCamera()) {
+            if (mCamera != null) {
+                mCamera.getDisplayMode(new CommonCallbacks.CompletionCallbackWith<SettingsDefinitions.DisplayMode>() {
+                    @Override
+                    public void onSuccess(SettingsDefinitions.DisplayMode displayMode) {
+                        mMode = displayMode;
+                    }
+
+                    @Override
+                    public void onFailure(DJIError djiError) {
+
+                    }
+                });
+
+                if(mMode == SettingsDefinitions.DisplayMode.THERMAL_ONLY){
+                    mCamera.setThermalMeasurementMode(ThermalMeasurementMode.SPOT_METERING, new CommonCallbacks.CompletionCallback() {
+                        @Override
+                        public void onResult(DJIError error) {
+                            if (error == null) {
+                                // 666
+                            } else {
+                                showToast(error.getDescription());
+                            }
+                        }
+                    });
+
+                    PointF center = new PointF();
+                    center.x = 0.1f;
+                    center.y = 0.1f;
+                    mCamera.setThermalSpotMeteringTargetPoint(center, new CommonCallbacks.CompletionCallback() {
+                        @Override
+                        public void onResult(DJIError error) {
+                            if (error == null) {
+                                // 666
+                            } else {
+                                showToast(error.getDescription());
+                            }
+                        }
+                    });
+
+//                    mCamera.setThermalTemperatureCallback(new Camera.TemperatureDataCallback() {
+//                        @Override
+//                        public void onUpdate(float temperature) {
+//                            showToast("Temperature in image center: " + temperature);
+//                        }
+//                    });
+                }
+            }else{
+                showToast("Camera object is null !");
+            }
+        }else{
+            showToast("Camera 1 is not thermal.");
         }
     }
 
@@ -688,12 +775,11 @@ public class MainActivity extends Activity implements OnClickListener {
                 configureMSXImage();
                 break;
             }
-
             case R.id.btn_thermal:{
                 configureThermalImage();
                 break;
             }
-            case R.id.btn_send:{
+            case R.id.btn_sc:{
                 try {
                     mMutex.acquire();
                     showToast("Take Screenshot");
@@ -703,6 +789,10 @@ public class MainActivity extends Activity implements OnClickListener {
                 } finally {
                     mMutex.release();
                 }
+                break;
+            }
+            case R.id.btn_measure:{
+                setMeasurePoint();
                 break;
             }
             default:

@@ -64,21 +64,28 @@
             android:id="@+id/btn_thermal"
             android:layout_width="100dp"
             android:layout_height="wrap_content"
+            android:clickable="true"
             android:gravity="center_horizontal|center_vertical"
             android:text="Thermal" />
 
 
         <Button
-            android:id="@+id/btn_send"
+            android:id="@+id/btn_sc"
             android:layout_width="100dp"
             android:layout_height="wrap_content"
             android:clickable="true"
             android:gravity="center_horizontal|center_vertical"
-            android:text="Send" />
+            android:text="Take SC" />
+
+        <Button
+            android:id="@+id/btn_measure"
+            android:layout_width="100dp"
+            android:layout_height="wrap_content"
+            android:text="Measure" />
 
         <SeekBar
             android:id="@+id/seekbar_msx"
-            android:layout_width="match_parent"
+            android:layout_width="wrap_content"
             android:layout_height="match_parent"
             android:layout_weight="1"
             android:indeterminate="false"
