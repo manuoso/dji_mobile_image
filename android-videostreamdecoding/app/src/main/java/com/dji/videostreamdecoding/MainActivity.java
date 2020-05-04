@@ -5,6 +5,7 @@ import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.ImageFormat;
 
+import android.graphics.RectF;
 import android.graphics.YuvImage;
 import android.graphics.Rect;
 import android.media.MediaCodecInfo;
@@ -25,6 +26,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 import android.view.View.OnClickListener;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.RequiresApi;
 
 import com.dji.videostreamdecoding.fastcom.ImagePublisher;
@@ -52,6 +54,8 @@ import java.util.List;
 import java.util.concurrent.Semaphore;
 
 import dji.common.camera.SettingsDefinitions;
+import dji.common.camera.ThermalAreaTemperatureAggregations;
+import dji.common.camera.ThermalMeasurementMode;
 import dji.common.error.DJIError;
 import dji.common.product.Model;
 import dji.common.util.CommonCallbacks;
@@ -99,6 +103,8 @@ public class MainActivity extends Activity implements OnClickListener {
 
     private float mRelativeFaceSize;
     private int   mAbsoluteFaceSize;
+
+    private RectF mNormalizedFaceRect;
 
 
 //    static {
@@ -202,6 +208,16 @@ public class MainActivity extends Activity implements OnClickListener {
             return true;
         else
             return false;
+    }
+
+    private void updateDetection(org.opencv.core.Rect faceDetected){
+        // Normalize detection
+        float x_norm = faceDetected.x / mWidth;
+        float y_norm = faceDetected.y / mHeight;
+        float width_norm = faceDetected.width / mWidth;
+        float height_norm = faceDetected.height / mHeight;
+
+        mNormalizedFaceRect = new RectF(x_norm,y_norm,width_norm,height_norm);
     }
 
     @Override
@@ -371,6 +387,8 @@ public class MainActivity extends Activity implements OnClickListener {
                                         // Print faces in mMatImage
                                         for (int i = 0; i < facesArray.length; i++)
                                             Imgproc.rectangle(mMatImage, facesArray[i].tl(), facesArray[i].br(), FACE_RECT_COLOR, 3);
+
+                                        updateDetection(facesArray[0]);
                                     }
                                     // TODO CHECK IF DISABLE IMAGE VIEW DECREASES LAG
                                     runOnUiThread(new Runnable() {
@@ -555,39 +573,46 @@ public class MainActivity extends Activity implements OnClickListener {
                         }
                     });
 
-//                camera.setThermalMeasurementMode(ThermalMeasurementMode.SPOT_METERING, new CommonCallbacks.CompletionCallback() {
-//                    @Override
-//                    public void onResult(DJIError error) {
-//
-//                        if (error == null) {
-//                            // 666
-//                        } else {
-//                            showToast(error.getDescription());
-//                        }
-//                    }
-//                });
-//
-//                PointF center = new PointF();
-//                center.x = 0.5f;
-//                center.y = 0.5f;
-//                camera.setThermalSpotMeteringTargetPoint(center, new CommonCallbacks.CompletionCallback() {
-//                    @Override
-//                    public void onResult(DJIError error) {
-//
-//                        if (error == null) {
-//                            // 666
-//                        } else {
-//                            showToast(error.getDescription());
-//                        }
-//                    }
-//                });
-//
-//                camera.setThermalTemperatureCallback(new Camera.TemperatureDataCallback() {
-//                    @Override
-//                    public void onUpdate(float temperature) {
-//                        showToast("Temperature in image center: " + temperature);
-//                    }
-//                });
+                camera.setThermalMeasurementMode(ThermalMeasurementMode.AREA_METERING, new CommonCallbacks.CompletionCallback() {
+                    @Override
+                    public void onResult(DJIError error) {
+
+                        if (error == null) {
+                            // 666
+                        } else {
+                            showToast(error.getDescription());
+                        }
+                    }
+                });
+
+                camera.setThermalMeteringArea(mNormalizedFaceRect, new CommonCallbacks.CompletionCallback() {
+                    @Override
+                    public void onResult(DJIError error) {
+
+                        if (error == null) {
+                            // 666
+                        } else {
+                            showToast(error.getDescription());
+                        }
+                    }
+
+                });
+
+                camera.setThermalAreaTemperatureAggregationsCallback(new ThermalAreaTemperatureAggregations.Callback(){
+
+                    @Override
+                    public void onUpdate(/*@NonNull*/ ThermalAreaTemperatureAggregations thermalAreaMasurement) {
+                        float avgTemperature = thermalAreaMasurement.getAverageAreaTemperature();
+                        showToast("AVG TEMP IN DETECTION: " + avgTemperature);
+                    }
+                });
+
+                camera.setThermalTemperatureCallback(new Camera.TemperatureDataCallback() {
+                    @Override
+                    public void onUpdate(float temperature) {
+                        showToast("Temperature in image center: " + temperature);
+                    }
+                });
 
                 }else{
                     showToast("Camera object is null !");
