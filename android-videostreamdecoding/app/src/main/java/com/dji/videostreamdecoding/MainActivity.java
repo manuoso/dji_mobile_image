@@ -52,7 +52,6 @@ import java.nio.ByteBuffer;
 import java.util.concurrent.Semaphore;
 
 import dji.common.camera.SettingsDefinitions;
-import dji.common.camera.ThermalAreaTemperatureAggregations;
 import dji.common.camera.ThermalMeasurementMode;
 import dji.common.error.DJIError;
 import dji.common.product.Model;
@@ -69,11 +68,10 @@ public class MainActivity extends Activity implements OnClickListener {
     private static final int MSG_WHAT_SHOW_TOAST = 0;
     private static final int MSG_WHAT_UPDATE_TITLE = 1;
 
-    private Camera mCamera;
-    private SettingsDefinitions.DisplayMode mMode;
-    private boolean mSuccess = false;
-    private PointF mPointF;
-    private TextView mTemp;
+    private long mLastTime = System.nanoTime();
+
+    private Camera mCamera = null;
+    private TextView mTemp, mTime, mAvgTmp, mMaxTmp, mMinTmp;
     private EditText mPtCx, mPtCy;
 
     private DJICodecManager mCodecManager = null;
@@ -93,7 +91,7 @@ public class MainActivity extends Activity implements OnClickListener {
     private int mSVal = 0;
 
     private TextView titleTv;
-    private Button mBtVisual, mBtMSX, mBtThermal, mBtTkSC, mBtMeasure;
+    private Button mBtVisual, mBtMSX, mBtThermal, mBtTkSC, mBtMeasure, mBtSpot;
     private SeekBar mSbMSX;
 
     private ImageView mScreen;
@@ -208,7 +206,8 @@ public class MainActivity extends Activity implements OnClickListener {
         mBtMSX = (Button) findViewById(R.id.btn_msx);
         mBtThermal = (Button) findViewById(R.id.btn_thermal);
         mBtTkSC = (Button) findViewById(R.id.btn_sc);
-        mBtMeasure = (Button) findViewById(R.id.btn_measure);
+        mBtMeasure = (Button) findViewById(R.id.btn_med);
+        mBtSpot = (Button) findViewById(R.id.btn_spot);
 
         mSbMSX = (SeekBar) findViewById(R.id.seekbar_msx);
 
@@ -216,7 +215,12 @@ public class MainActivity extends Activity implements OnClickListener {
 
         mScreen = findViewById(R.id.img_view_display);
 
-        mTemp = (TextView) findViewById(R.id.text_fastcom);
+        mTime = (TextView) findViewById(R.id.text_view_time);
+        mAvgTmp = (TextView) findViewById(R.id.text_view_avg_tmp);
+        mMaxTmp = (TextView) findViewById(R.id.text_view_max_tmp);
+        mMinTmp = (TextView) findViewById(R.id.text_view_min_tmp);
+
+        mTemp = (TextView) findViewById(R.id.txt_view_tmp);
         mPtCx = (EditText) findViewById(R.id.edit_txt_cx);
         mPtCy = (EditText) findViewById(R.id.edit_txt_cy);
 
@@ -225,6 +229,7 @@ public class MainActivity extends Activity implements OnClickListener {
         mBtThermal.setOnClickListener(this);
         mBtTkSC.setOnClickListener(this);
         mBtMeasure.setOnClickListener(this);
+        mBtSpot.setOnClickListener(this);
 
         if( mPublisher == null){
             mPublisher = new ImagePublisher(8888);
@@ -382,6 +387,15 @@ public class MainActivity extends Activity implements OnClickListener {
 
                                     mMatImage = pic.clone();
 
+                                    double incT = (System.nanoTime()-mLastTime)*10e-9;
+                                    mLastTime = System.nanoTime();
+                                    runOnUiThread(new Runnable() {
+                                        @Override
+                                        public void run() {
+                                            mTime.setText("Time: " + incT);
+                                        }
+                                    });
+
                                     // Detect faces in gray image
 //                                    Mat image_gray = new Mat();
 //                                    cvtColor(mMatImage, image_gray, Imgproc.COLOR_BGRA2GRAY);
@@ -432,7 +446,6 @@ public class MainActivity extends Activity implements OnClickListener {
                     try {
                         mMutex.acquire();
                         if(mMatImage != null){
-                            // TODO CHECK IF DISABLE IMAGE VIEW DECREASES LAG
                             runOnUiThread(new Runnable() {
                                 @Override
                                 public void run() {
@@ -449,7 +462,7 @@ public class MainActivity extends Activity implements OnClickListener {
                     }
 
                     try {
-                        Thread.sleep(30);
+                        Thread.sleep(10);
                     } catch (InterruptedException e) {
                         e.printStackTrace();
                     }
@@ -475,7 +488,7 @@ public class MainActivity extends Activity implements OnClickListener {
                     }
 
                     try {
-                        Thread.sleep(30);
+                        Thread.sleep(10);
                     } catch (InterruptedException e) {
                         e.printStackTrace();
                     }
@@ -607,18 +620,13 @@ public class MainActivity extends Activity implements OnClickListener {
             Log.e(TAG, "test screenShot: compress yuv image error: " + e);
             e.printStackTrace();
         }
-        runOnUiThread(new Runnable() {
-            @Override
-            public void run(){
-            }
-        });
     }
 
     /* ************************************************** Click and Configure Camera ************************************************** */
 
     private void configureThermalImage(){
-        if (mCamera.isThermalCamera()) {
-            if (mCamera != null) {
+        if (mCamera != null) {
+            if (mCamera.isThermalCamera()) {
                 mCamera.setDisplayMode(SettingsDefinitions.DisplayMode.THERMAL_ONLY, new CommonCallbacks.CompletionCallback() {
                     @Override
                     public void onResult(DJIError error) {
@@ -680,8 +688,8 @@ public class MainActivity extends Activity implements OnClickListener {
     }
 
     private void configureMSXImage(){
-        if (mCamera.isThermalCamera()){
-            if (mCamera != null){
+        if (mCamera != null){
+            if (mCamera.isThermalCamera()){
                 mCamera.setDisplayMode(SettingsDefinitions.DisplayMode.MSX, new CommonCallbacks.CompletionCallback() {
                     @Override
                     public void onResult(DJIError error) {
@@ -718,80 +726,61 @@ public class MainActivity extends Activity implements OnClickListener {
     }
 
     private void setMeasurePoint(){
-        if (mCamera.isThermalCamera()) {
-            if (mCamera != null) {
-                mCamera.getDisplayMode(new CommonCallbacks.CompletionCallbackWith<SettingsDefinitions.DisplayMode>() {
+        if (mCamera != null) {
+            if (mCamera.isThermalCamera()) {
+                mCamera.setDisplayMode(SettingsDefinitions.DisplayMode.THERMAL_ONLY, new CommonCallbacks.CompletionCallback() {
                     @Override
-                    public void onSuccess(SettingsDefinitions.DisplayMode displayMode) {
-                        mMode = displayMode;
-                    }
-
-                    @Override
-                    public void onFailure(DJIError djiError) {
-
+                    public void onResult(DJIError error) {
+                        if (error == null) {
+                            showToast("Switch to thermal Succeeded");
+                        } else {
+                            showToast(error.getDescription());
+                        }
                     }
                 });
 
-                if(mMode == SettingsDefinitions.DisplayMode.THERMAL_ONLY){
-                    mCamera.setThermalMeasurementMode(ThermalMeasurementMode.SPOT_METERING, new CommonCallbacks.CompletionCallback() {
-                        @Override
-                        public void onResult(DJIError error) {
-                            if (error == null) {
-                                mSuccess = true;
-                            } else {
-                                mSuccess = false;
-                                showToast(error.getDescription());
-                            }
+                mCamera.setThermalMeasurementMode(ThermalMeasurementMode.SPOT_METERING, new CommonCallbacks.CompletionCallback() {
+                    @Override
+                    public void onResult(DJIError error) {
+                        if (error == null) {
+                            showToast("Spot Metering");
+                        } else {
+                            showToast(error.getDescription());
                         }
-                    });
+                    }
+                });
 
-                    PointF center = new PointF();
-                    center.x = Float.valueOf(mPtCx.getText().toString());
-                    center.y = Float.valueOf(mPtCy.getText().toString());
-                    showToast("CX: " + center.x);
-                    showToast("CY: " + center.y);
+                PointF center = new PointF();
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        center.x = Float.parseFloat(mPtCx.getText().toString());
+                        center.y = Float.parseFloat(mPtCy.getText().toString());
+                    }
+                });
 
-                    mCamera.setThermalSpotMeteringTargetPoint(center, new CommonCallbacks.CompletionCallback() {
-                        @Override
-                        public void onResult(DJIError error) {
-                            if (error == null) {
-                                mSuccess = true;
-                            } else {
-                                mSuccess = false;
-                                showToast(error.getDescription());
-                            }
+                mCamera.setThermalSpotMeteringTargetPoint(center, new CommonCallbacks.CompletionCallback() {
+                    @Override
+                    public void onResult(DJIError error) {
+                        if (error == null) {
+                            showToast("Set PT");
+                        } else {
+                            showToast(error.getDescription());
                         }
-                    });
+                    }
+                });
 
-                    mCamera.getThermalSpotMeteringTargetPoint(new CommonCallbacks.CompletionCallbackWith<PointF>() {
-                        @Override
-                        public void onSuccess(PointF pointF) {
-                            mSuccess = true;
-                            mPointF = pointF;
-                        }
-
-                        @Override
-                        public void onFailure(DJIError djiError) {
-                            mSuccess = false;
-                            showToast(djiError.getDescription());
-                        }
-                    });
-
-                    if(mPointF.x == center.x && mPointF.y == center.y){
-                        showToast("Set PT Good");
-                        mCamera.setThermalTemperatureCallback(new Camera.TemperatureDataCallback() {
+                mCamera.setThermalTemperatureCallback(new Camera.TemperatureDataCallback() {
+                    @Override
+                    public void onUpdate(float temperature) {
+                        runOnUiThread(new Runnable() {
                             @Override
-                            public void onUpdate(float temperature) {
-                                runOnUiThread(new Runnable() {
-                                    @Override
-                                    public void run() {
-                                        mTemp.setText("Temp: " + temperature);
-                                    }
-                                });
+                            public void run() {
+                                mTemp.setText("Temp: " + temperature);
                             }
                         });
                     }
-                }
+                });
             }else{
                 showToast("Camera object is null !");
             }
@@ -803,19 +792,23 @@ public class MainActivity extends Activity implements OnClickListener {
     @Override
     public void onClick(View v) {
         switch (v.getId()) {
-            case R.id.btn_visual:{
+            case R.id.btn_visual:
+            {
                 configureVisualImage();
-                break;
             }
-            case R.id.btn_msx:{
+                break;
+            case R.id.btn_msx:
+            {
                 configureMSXImage();
-                break;
             }
-            case R.id.btn_thermal:{
+                break;
+            case R.id.btn_thermal:
+            {
                 configureThermalImage();
-                break;
             }
-            case R.id.btn_sc:{
+                break;
+            case R.id.btn_sc:
+            {
                 try {
                     mMutex.acquire();
                     showToast("Take Screenshot");
@@ -825,12 +818,18 @@ public class MainActivity extends Activity implements OnClickListener {
                 } finally {
                     mMutex.release();
                 }
-                break;
             }
-            case R.id.btn_measure:{
+                break;
+            case R.id.btn_med:
+            {
+
+            }
+                break;
+            case R.id.btn_spot:
+            {
                 setMeasurePoint();
-                break;
             }
+                break;
             default:
                 break;
         }

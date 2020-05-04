@@ -12,7 +12,7 @@
         android:layout_width="fill_parent"
         android:layout_height="40dp"
         android:layout_alignParentBottom="false"
-        android:background="@color/colorPrimary">
+        android:background="@color/colorGrey">
 
         <TextView
             android:id="@+id/title_tv"
@@ -20,7 +20,7 @@
             android:layout_height="wrap_content"
             android:layout_centerInParent="true"
             android:text="@string/title_main_activity"
-            android:textColor="@android:color/white" />
+            android:textColor="@android:color/black" />
 
     </RelativeLayout>
 
@@ -78,7 +78,7 @@
             android:text="Take SC" />
 
         <Button
-            android:id="@+id/btn_measure"
+            android:id="@+id/btn_med"
             android:layout_width="100dp"
             android:layout_height="wrap_content"
             android:clickable="true"
@@ -87,6 +87,7 @@
 
         <SeekBar
             android:id="@+id/seekbar_msx"
+            style="@android:style/Widget.Material.SeekBar.Discrete"
             android:layout_width="wrap_content"
             android:layout_height="match_parent"
             android:layout_weight="1"
@@ -101,7 +102,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginLeft="10dp"
-        android:layout_marginTop="100dp"
+        android:layout_marginTop="85dp"
         android:text="Temp:"
         android:textColor="@color/colorWhite"
         android:textSize="18sp" />
@@ -111,10 +112,10 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginLeft="10dp"
-        android:layout_marginTop="130dp"
-        android:ems="4"
-        android:inputType="textPersonName"
-        android:text="CX"
+        android:layout_marginTop="120dp"
+        android:ems="3"
+        android:inputType="numberDecimal"
+        android:text="0.5"
         android:textColor="@color/colorBlack"
         android:textSize="18sp" />
 
@@ -123,10 +124,59 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginLeft="10dp"
-        android:layout_marginTop="180dp"
-        android:ems="4"
-        android:inputType="textPersonName"
-        android:text="CY"
+        android:layout_marginTop="170dp"
+        android:ems="3"
+        android:inputType="numberDecimal"
+        android:text="0.5"
         android:textColor="@color/colorBlack" />
+
+    <TextView
+        android:id="@+id/text_view_time"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginLeft="10dp"
+        android:layout_marginTop="50dp"
+        android:text="Time: "
+        android:textColor="@color/colorWhite"
+        android:textSize="18sp" />
+
+    <Button
+        android:id="@+id/btn_spot"
+        android:layout_width="100dp"
+        android:layout_height="wrap_content"
+        android:layout_marginLeft="10dp"
+        android:layout_marginTop="220dp"
+        android:clickable="true"
+        android:text="Spot MED" />
+
+    <TextView
+        android:id="@+id/text_view_avg_tmp"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginLeft="620dp"
+        android:layout_marginTop="90dp"
+        android:text="Avg Temp:"
+        android:textColor="@color/colorWhite"
+        android:textSize="18sp" />
+
+    <TextView
+        android:id="@+id/text_view_max_tmp"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginLeft="620dp"
+        android:layout_marginTop="130dp"
+        android:text="Max Temp:"
+        android:textColor="@color/colorWhite"
+        android:textSize="18sp" />
+
+    <TextView
+        android:id="@+id/text_view_min_tmp"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginLeft="620dp"
+        android:layout_marginTop="170dp"
+        android:text="Min Tmp:"
+        android:textColor="@color/colorWhite"
+        android:textSize="18sp" />
 
 </RelativeLayout>

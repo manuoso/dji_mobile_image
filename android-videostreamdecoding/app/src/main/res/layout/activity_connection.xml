@@ -93,7 +93,7 @@
         android:layout_alignParentTop="true"
         android:layout_marginStart="50dp"
         android:layout_marginLeft="50dp"
-        android:layout_marginTop="227dp"
+        android:layout_marginTop="230dp"
         android:text="IP: "
         android:textSize="18sp" />
 
