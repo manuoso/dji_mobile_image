@@ -37,6 +37,7 @@ import org.opencv.android.Utils;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
 import org.opencv.core.MatOfRect;
+import org.opencv.core.Point;
 import org.opencv.core.Scalar;
 import org.opencv.core.Size;
 import org.opencv.imgproc.Imgproc;
@@ -53,6 +54,7 @@ import java.text.DecimalFormat;
 import java.util.concurrent.Semaphore;
 
 import dji.common.camera.SettingsDefinitions;
+import dji.common.camera.ThermalAreaTemperatureAggregations;
 import dji.common.camera.ThermalMeasurementMode;
 import dji.common.error.DJIError;
 import dji.common.product.Model;
@@ -92,11 +94,12 @@ public class MainActivity extends Activity implements OnClickListener {
     private Mat mMatImage = null;
     private ImagePublisher mPublisher = null;
 
-    private int mSVal = 0;
+    private int mSValMSX = 0;
+    private int mSValFace = 0;
 
     private TextView titleTv;
-    private Button mBtVisual, mBtMSX, mBtThermal, mBtTkSC, mBtMeasure, mBtSpot;
-    private SeekBar mSbMSX;
+    private Button mBtVisual, mBtMSX, mBtThermal, mBtTkSC, mBtDisDetect, mBtSpot, mBtnDisMeasure, mBtRect;
+    private SeekBar mSbMSX, mSbFace;
 
     private ImageView mScreen;
 
@@ -104,12 +107,18 @@ public class MainActivity extends Activity implements OnClickListener {
     // https://stackoverflow.com/questions/33764245/android-opencv-couldnt-load-detection-based-tracker
     private File mCascadeFile;
     private CascadeClassifier mJavaDetector;
-    private static final Scalar FACE_RECT_COLOR     = new Scalar(0, 255, 0, 255);
+    private static final Scalar FACE_RECT_COLOR = new Scalar(0, 255, 0, 255);
 
-    private float mRelativeFaceSize;
-    private int   mAbsoluteFaceSize;
+    private float mRelativeFaceSize = (float) 0.5;
+    private int mAbsoluteFaceSize = 0;
 
     private RectF mNormalizedFaceRect;
+
+    private boolean mShowLastRect = false;
+    private boolean mDetectEnable = false;
+
+    Point mP1Rect = new Point();
+    Point mP2Rect = new Point();
 
     static {
         mInitOpenCV = OpenCVLoader.initDebug();
@@ -139,7 +148,8 @@ public class MainActivity extends Activity implements OnClickListener {
             switch (status) {
                 case LoaderCallbackInterface.SUCCESS:
                 {
-                    Boolean detectorInicializated = configureMultiscaleFaceDetector();
+                    Boolean detectorInit= configureMultiscaleFaceDetector();
+                    showToast("Detector Init: " + detectorInit);
                 }
                     break;
                 default:
@@ -210,9 +220,12 @@ public class MainActivity extends Activity implements OnClickListener {
         mBtMSX = (Button) findViewById(R.id.btn_msx);
         mBtThermal = (Button) findViewById(R.id.btn_thermal);
         mBtTkSC = (Button) findViewById(R.id.btn_sc);
-        mBtMeasure = (Button) findViewById(R.id.btn_med);
+        mBtDisDetect = (Button) findViewById(R.id.btn_dis_det);
         mBtSpot = (Button) findViewById(R.id.btn_spot);
+        mBtnDisMeasure = (Button) findViewById(R.id.btn_dis_meas);
+        mBtRect = (Button) findViewById(R.id.btn_rect);
 
+        mSbFace = (SeekBar) findViewById(R.id.seekbar_face);
         mSbMSX = (SeekBar) findViewById(R.id.seekbar_msx);
 
         titleTv = (TextView) findViewById(R.id.title_tv);
@@ -232,28 +245,67 @@ public class MainActivity extends Activity implements OnClickListener {
         mBtMSX.setOnClickListener(this);
         mBtThermal.setOnClickListener(this);
         mBtTkSC.setOnClickListener(this);
-        mBtMeasure.setOnClickListener(this);
+        mBtDisDetect.setOnClickListener(this);
         mBtSpot.setOnClickListener(this);
+        mBtnDisMeasure.setOnClickListener(this);
+        mBtRect.setOnClickListener(this);
 
         if( mPublisher == null){
             mPublisher = new ImagePublisher(8888);
         }
 
-        mSbMSX.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+        mSbFace.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                mSVal = progress;
+                mSValFace = progress;
             }
+
             @Override
             public void onStartTrackingTouch(SeekBar seekBar) {
-                //write custom code to on start progress
+
             }
+
             @Override
             public void onStopTrackingTouch(SeekBar seekBar) {
-                showToast("Val: " + mSVal);
+                showToast("Val: " + mSValFace);
+                mRelativeFaceSize = (float) mSValFace/100;
             }
         });
 
+        mSbMSX.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                mSValMSX = progress;
+            }
+
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {
+
+            }
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {
+                showToast("Val: " + mSValMSX);
+                if (mCamera != null){
+                    if (mCamera.isThermalCamera()){
+                        mCamera.setMSXLevel(mSValMSX, new CommonCallbacks.CompletionCallback() {
+                            @Override
+                            public void onResult(DJIError djiError) {
+                                if (djiError == null) {
+                                    showToast("Set MSX Level");
+                                } else {
+                                    showToast(djiError.getDescription());
+                                }
+                            }
+                        });
+                    }else{
+                        showToast("Camera 1 is not thermal");
+                    }
+                }else{
+                    showToast("Camera object is null");
+                }
+            }
+        });
     }
 
     private void notifyStatusChange() {
@@ -276,10 +328,6 @@ public class MainActivity extends Activity implements OnClickListener {
     }
 
     private Boolean configureMultiscaleFaceDetector(){
-        // Configure face relative size
-        mRelativeFaceSize       = 0.4f;
-        mAbsoluteFaceSize       = 0;
-
         Boolean success = false;
         try {
             // load cascade file from application resources
@@ -298,17 +346,14 @@ public class MainActivity extends Activity implements OnClickListener {
 
             mJavaDetector = new CascadeClassifier(mCascadeFile.getAbsolutePath());
             if (mJavaDetector.empty()) {
-                Log.e(TAG, "Failed to load cascade classifier");
                 mJavaDetector = null;
-            } else
-                Log.i(TAG, "Loaded cascade classifier from " + mCascadeFile.getAbsolutePath());
+                return false;
+            }
 
             cascadeDir.delete();
             success = true;
-
         } catch (IOException e) {
             e.printStackTrace();
-            Log.e(TAG, "Failed to load cascade. Exception thrown: " + e);
         }
 
         return success;
@@ -341,7 +386,7 @@ public class MainActivity extends Activity implements OnClickListener {
         float width_norm = faceDetected.width / mWidth;
         float height_norm = faceDetected.height / mHeight;
 
-        mNormalizedFaceRect = new RectF(x_norm,y_norm,width_norm,height_norm);
+        mNormalizedFaceRect = new RectF(x_norm, y_norm, width_norm, height_norm);
     }
 
     private void createCodec(){
@@ -383,7 +428,6 @@ public class MainActivity extends Activity implements OnClickListener {
                                         mImgDecode = new byte[bytes.length];
                                         mImgDecode = bytes;
 
-                                        // TODO CHECK CONVERSION TIMES...
                                         Mat myuv = new Mat(height + height / 2, width, CvType.CV_8UC1);
                                         myuv.put(0,0, mImgDecode);
 
@@ -391,6 +435,28 @@ public class MainActivity extends Activity implements OnClickListener {
                                         cvtColor(myuv, pic, Imgproc.COLOR_YUV2BGRA_NV12);
 
                                         mMatImage = pic.clone();
+
+                                        if(mShowLastRect){
+                                            Imgproc.rectangle(mMatImage, mP1Rect, mP2Rect, FACE_RECT_COLOR, 3);
+                                        }
+
+                                        // Detect faces in gray image
+                                        if(mDetectEnable) {
+                                            Mat image_gray = new Mat();
+                                            cvtColor(mMatImage, image_gray, Imgproc.COLOR_BGRA2GRAY);
+
+                                            MatOfRect faces = new MatOfRect();
+                                            org.opencv.core.Rect[] facesArray;
+                                            if (detectFace(image_gray, faces)) {
+                                                facesArray = faces.toArray();
+
+                                                mP1Rect = facesArray[0].tl();
+                                                mP2Rect = facesArray[0].br();
+
+                                                Imgproc.rectangle(mMatImage, facesArray[0].tl(), facesArray[0].br(), FACE_RECT_COLOR, 3);
+                                                updateDetection(facesArray[0]);
+                                            }
+                                        }
 
                                         double incT = (System.nanoTime()-mLastTime)*10e-9;
                                         mLastTime = System.nanoTime();
@@ -400,24 +466,8 @@ public class MainActivity extends Activity implements OnClickListener {
                                                 mTime.setText("Time: " + mDF.format(incT));
                                             }
                                         });
-
-                                        // Detect faces in gray image
-//                                        Mat image_gray = new Mat();
-//                                        cvtColor(mMatImage, image_gray, Imgproc.COLOR_BGRA2GRAY);
-//
-//                                        MatOfRect faces = new MatOfRect();
-//                                        org.opencv.core.Rect[] facesArray;
-//                                        if (detectFace(image_gray, faces)) {
-//                                            facesArray = faces.toArray();
-//
-//                                            // Print faces in mMatImage
-//                                            for (int i = 0; i < facesArray.length; i++)
-//                                                Imgproc.rectangle(mMatImage, facesArray[i].tl(), facesArray[i].br(), FACE_RECT_COLOR, 3);
-//
-//                                            updateDetection(facesArray[0]);
-//                                        }
                                     } catch (InterruptedException e) {
-
+                                        // TODO
                                     } finally {
                                         mMutex.release();
                                     }
@@ -648,53 +698,11 @@ public class MainActivity extends Activity implements OnClickListener {
                         }
                     }
                 });
-
-//                mCamera.setThermalMeasurementMode(ThermalMeasurementMode.AREA_METERING, new CommonCallbacks.CompletionCallback() {
-//                    @Override
-//                    public void onResult(DJIError error) {
-//
-//                        if (error == null) {
-//                            // 666
-//                        } else {
-//                            showToast(error.getDescription());
-//                        }
-//                    }
-//                });
-//
-//                mCamera.setThermalMeteringArea(mNormalizedFaceRect, new CommonCallbacks.CompletionCallback() {
-//                    @Override
-//                    public void onResult(DJIError error) {
-//
-//                        if (error == null) {
-//                            // 666
-//                        } else {
-//                            showToast(error.getDescription());
-//                        }
-//                    }
-//
-//                });
-//
-//                mCamera.setThermalAreaTemperatureAggregationsCallback(new ThermalAreaTemperatureAggregations.Callback(){
-//
-//                    @Override
-//                    public void onUpdate(/*@NonNull*/ ThermalAreaTemperatureAggregations thermalAreaMasurement) {
-//                        float avgTemperature = thermalAreaMasurement.getAverageAreaTemperature();
-//                        showToast("AVG TEMP IN DETECTION: " + avgTemperature);
-//                    }
-//                });
-//
-//                mCamera.setThermalTemperatureCallback(new Camera.TemperatureDataCallback() {
-//                    @Override
-//                    public void onUpdate(float temperature) {
-//                        showToast("Temperature in image center: " + temperature);
-//                    }
-//                });
-
             }else{
-                showToast("Camera object is null !");
+                showToast("Camera 1 is not thermal");
             }
         }else{
-            showToast("Camera 1 is not thermal.");
+            showToast("Camera object is null");
         }
     }
 
@@ -712,10 +720,10 @@ public class MainActivity extends Activity implements OnClickListener {
                     }
                 });
             }else{
-                showToast("Camera object is null !");
+                showToast("Camera 1 is not thermal");
             }
         }else{
-            showToast("Camera 1 is not thermal.");
+            showToast("Camera object is null");
         }
     }
 
@@ -732,7 +740,7 @@ public class MainActivity extends Activity implements OnClickListener {
                 }
             });
         }else{
-            showToast("Camera object is null !");
+            showToast("Camera object is null");
         }
     }
 
@@ -793,10 +801,110 @@ public class MainActivity extends Activity implements OnClickListener {
                     }
                 });
             }else{
-                showToast("Camera object is null !");
+                showToast("Camera 1 is not thermal");
             }
         }else{
-            showToast("Camera 1 is not thermal.");
+            showToast("Camera object is null");
+        }
+    }
+
+    private void setMeasureRect(){
+        if (mCamera != null) {
+            if (mCamera.isThermalCamera()) {
+                mCamera.setDisplayMode(SettingsDefinitions.DisplayMode.THERMAL_ONLY, new CommonCallbacks.CompletionCallback() {
+                    @Override
+                    public void onResult(DJIError error) {
+                        if (error == null) {
+                            showToast("Switch to thermal Succeeded");
+                        } else {
+                            showToast(error.getDescription());
+                        }
+                    }
+                });
+
+                mCamera.setThermalMeasurementMode(ThermalMeasurementMode.AREA_METERING, new CommonCallbacks.CompletionCallback() {
+                    @Override
+                    public void onResult(DJIError error) {
+                        if (error == null) {
+                            showToast("Area Metering");
+                        } else {
+                            showToast(error.getDescription());
+                        }
+                    }
+                });
+
+                mCamera.setThermalMeteringArea(mNormalizedFaceRect, new CommonCallbacks.CompletionCallback() {
+                    @Override
+                    public void onResult(DJIError error) {
+                        if (error == null) {
+                            showToast("Set Rect");
+                        } else {
+                            showToast(error.getDescription());
+                        }
+                    }
+                });
+
+                mCamera.setThermalAreaTemperatureAggregationsCallback(new ThermalAreaTemperatureAggregations.Callback(){
+                    @Override
+                    public void onUpdate(/*@NonNull*/ ThermalAreaTemperatureAggregations thermalAreaMasurement) {
+                        float avgTemperature = thermalAreaMasurement.getAverageAreaTemperature();
+                        float maxTemperature = thermalAreaMasurement.getMaxAreaTemperature();
+                        float minTemperature = thermalAreaMasurement.getMinAreaTemperature();
+                        runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                mAvgTmp.setText("Avg Temp: " + mDF.format(avgTemperature));
+                                mMaxTmp.setText("Max Temp: " + mDF.format(maxTemperature));
+                                mMinTmp.setText("Min Temp: " + mDF.format(minTemperature));
+                            }
+                        });
+                    }
+                });
+
+            }else{
+                showToast("Camera 1 is not thermal");
+            }
+        }else{
+            showToast("Camera object is null");
+        }
+    }
+
+    private void disMeasureTemp(){
+        if (mCamera != null) {
+            if (mCamera.isThermalCamera()) {
+                mCamera.setDisplayMode(SettingsDefinitions.DisplayMode.THERMAL_ONLY, new CommonCallbacks.CompletionCallback() {
+                    @Override
+                    public void onResult(DJIError error) {
+                        if (error == null) {
+                            showToast("Switch to thermal Succeeded");
+                        } else {
+                            showToast(error.getDescription());
+                        }
+                    }
+                });
+
+                mCamera.setThermalMeasurementMode(ThermalMeasurementMode.DISABLED, new CommonCallbacks.CompletionCallback() {
+                    @Override
+                    public void onResult(DJIError error) {
+                        if (error == null) {
+                            showToast("Disable Metering");
+                        } else {
+                            showToast(error.getDescription());
+                        }
+                    }
+                });
+
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        mTemp.setText("Temp: ");
+                    }
+                });
+            }else{
+                showToast("Camera 1 is not thermal");
+            }
+        }else{
+            showToast("Camera object is null");
         }
     }
 
@@ -831,9 +939,10 @@ public class MainActivity extends Activity implements OnClickListener {
                 }
             }
                 break;
-            case R.id.btn_med:
+            case R.id.btn_dis_det:
             {
-
+                mDetectEnable = !mDetectEnable;
+                showToast("Detection: " + mDetectEnable);
             }
                 break;
             case R.id.btn_spot:
@@ -841,6 +950,19 @@ public class MainActivity extends Activity implements OnClickListener {
                 setMeasurePoint();
             }
                 break;
+            case R.id.btn_rect:
+            {
+                mDetectEnable = false;
+                mShowLastRect = true;
+                setMeasureRect();
+            }
+            break;
+            case R.id.btn_dis_meas:
+            {
+                mShowLastRect = false;
+                disMeasureTemp();
+            }
+            break;
             default:
                 break;
         }
