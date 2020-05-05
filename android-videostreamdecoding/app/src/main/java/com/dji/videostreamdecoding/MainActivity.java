@@ -49,6 +49,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
+import java.text.DecimalFormat;
 import java.util.concurrent.Semaphore;
 
 import dji.common.camera.SettingsDefinitions;
@@ -70,6 +71,8 @@ public class MainActivity extends Activity implements OnClickListener {
     private static final int MSG_WHAT_UPDATE_TITLE = 1;
 
     private long mLastTime = System.nanoTime();
+
+    DecimalFormat mDF = new DecimalFormat("#.######");
 
     private Camera mCamera = null;
     private TextView mTemp, mTime, mAvgTmp, mMaxTmp, mMinTmp;
@@ -394,7 +397,7 @@ public class MainActivity extends Activity implements OnClickListener {
                                         runOnUiThread(new Runnable() {
                                             @Override
                                             public void run() {
-                                                mTime.setText("Time: " + incT);
+                                                mTime.setText("Time: " + mDF.format(incT));
                                             }
                                         });
 
@@ -784,7 +787,7 @@ public class MainActivity extends Activity implements OnClickListener {
                         runOnUiThread(new Runnable() {
                             @Override
                             public void run() {
-                                mTemp.setText("Temp: " + temperature);
+                                mTemp.setText("Temp: " + mDF.format(temperature));
                             }
                         });
                     }

@@ -151,7 +151,7 @@
 
     <TextView
         android:id="@+id/text_view_avg_tmp"
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginLeft="620dp"
         android:layout_marginTop="90dp"
@@ -161,7 +161,7 @@
 
     <TextView
         android:id="@+id/text_view_max_tmp"
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginLeft="620dp"
         android:layout_marginTop="130dp"
@@ -171,7 +171,7 @@
 
     <TextView
         android:id="@+id/text_view_min_tmp"
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginLeft="620dp"
         android:layout_marginTop="170dp"
