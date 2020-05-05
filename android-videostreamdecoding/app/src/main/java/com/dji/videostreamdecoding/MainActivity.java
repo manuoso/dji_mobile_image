@@ -118,6 +118,9 @@ public class MainActivity extends Activity implements OnClickListener {
     private boolean mShowLastRect = false;
     private boolean mDetectEnable = false;
     private boolean mShowDefaulRect = false;
+    private boolean mShowPoint = false;
+
+    Point mPointSpot = new Point();
 
     Point mP1Rect = new Point();
     Point mP2Rect = new Point();
@@ -558,6 +561,10 @@ public class MainActivity extends Activity implements OnClickListener {
                     try {
                         mMutex.acquire();
                         if(mMatImage != null){
+                            if(mShowPoint){
+                                Imgproc.circle(mMatImage, mPointSpot, 10, FACE_RECT_COLOR, -1);
+                            }
+
                             if(mShowDefaulRect){
                                 Imgproc.rectangle(mMatImage, mP1RectDef, mP2RectDef, FACE_RECT_COLOR, 3);
                             }
@@ -829,6 +836,9 @@ public class MainActivity extends Activity implements OnClickListener {
                     }
                 });
 
+                mPointSpot.x = center.x * mWidth;
+                mPointSpot.y = center.y * mHeight;
+
                 mCamera.setThermalSpotMeteringTargetPoint(center, new CommonCallbacks.CompletionCallback() {
                     @Override
                     public void onResult(DJIError error) {
@@ -999,6 +1009,7 @@ public class MainActivity extends Activity implements OnClickListener {
             case R.id.btn_spot:
             {
                 setMeasurePoint();
+                mShowPoint = true;
             }
                 break;
             case R.id.btn_detect:
@@ -1007,6 +1018,7 @@ public class MainActivity extends Activity implements OnClickListener {
                 mDetectEnable = false;
                 mShowLastRect = true;
                 mShowDefaulRect = false;
+                mShowPoint = false;
             }
                 break;
             case R.id.btn_rect:
@@ -1035,6 +1047,7 @@ public class MainActivity extends Activity implements OnClickListener {
                 mDetectEnable = false;
                 mShowLastRect = false;
                 mShowDefaulRect = true;
+                mShowPoint = false;
             }
                 break;
             case R.id.btn_dis_meas:
@@ -1043,6 +1056,7 @@ public class MainActivity extends Activity implements OnClickListener {
                 mShowLastRect = false;
                 mShowDefaulRect = false;
                 mDetectEnable = false;
+                mShowPoint = false;
             }
             break;
             default:
