@@ -60,6 +60,7 @@ import dji.midware.usb.P3.UsbAccessoryService;
 import dji.sdk.base.BaseProduct;
 import dji.sdk.camera.Camera;
 import dji.sdk.codec.DJICodecManager;
+import dji.thirdparty.afinal.core.AsyncTask;
 
 import static org.opencv.imgproc.Imgproc.cvtColor;
 
@@ -347,76 +348,78 @@ public class MainActivity extends Activity implements OnClickListener {
                     @Override
                     public void onYuvDataReceived(MediaFormat mediaFormat, ByteBuffer yuvFrame, int dataSize, final int width, final int height) {
                         if (mCount++ % 30 == 0 && yuvFrame != null) {
-                            final byte[] bytes = new byte[dataSize];
+                            mCount = 0;
 
+                            final byte[] bytes = new byte[dataSize];
                             yuvFrame.get(bytes);
 
-                            try {
-                                mMutex.acquire();
-                                mImgDecode = new byte[bytes.length];
-                                mWidth = width;
-                                mHeight = height;
-
-                                if (bytes.length < width * height) {
-                                    // TODO if NOT decoded...
-                                }else{
+                            AsyncTask.execute(new Runnable() {
+                                @Override
+                                public void run() {
                                     int colorFormat = mediaFormat.getInteger(MediaFormat.KEY_COLOR_FORMAT);
                                     switch (colorFormat) {
                                         case MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420SemiPlanar:
                                             //NV12
                                             if (Build.VERSION.SDK_INT <= 23) {
-                                                mImgDecode = oldYuvData(bytes, width, height);
+                                                oldYuvData(bytes, width, height);
                                             } else {
-                                                mImgDecode = yuvData(bytes, width, height);
+                                                yuvData(bytes, width, height);
                                             }
                                             break;
                                         case MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Planar:
                                             //YUV420P
-                                            mImgDecode = newYuvData420P(bytes, width, height);
+                                            newYuvData420P(bytes, width, height);
                                             break;
                                         default:
                                             break;
                                     }
+                                    try {
+                                        mMutex.acquire();
+                                        mWidth = width;
+                                        mHeight = height;
+                                        mImgDecode = new byte[bytes.length];
+                                        mImgDecode = bytes;
 
-                                    // TODO CHECK CONVERSION TIMES...
-                                    Mat myuv = new Mat(height + height / 2, width, CvType.CV_8UC1);
-                                    myuv.put(0,0, mImgDecode);
+                                        // TODO CHECK CONVERSION TIMES...
+                                        Mat myuv = new Mat(height + height / 2, width, CvType.CV_8UC1);
+                                        myuv.put(0,0, mImgDecode);
 
-                                    Mat pic = new Mat(height, width, CvType.CV_8UC4);
-                                    cvtColor(myuv, pic, Imgproc.COLOR_YUV2BGRA_NV12);
+                                        Mat pic = new Mat(height, width, CvType.CV_8UC4);
+                                        cvtColor(myuv, pic, Imgproc.COLOR_YUV2BGRA_NV12);
 
-                                    mMatImage = pic.clone();
+                                        mMatImage = pic.clone();
 
-                                    double incT = (System.nanoTime()-mLastTime)*10e-9;
-                                    mLastTime = System.nanoTime();
-                                    runOnUiThread(new Runnable() {
-                                        @Override
-                                        public void run() {
-                                            mTime.setText("Time: " + incT);
-                                        }
-                                    });
+                                        double incT = (System.nanoTime()-mLastTime)*10e-9;
+                                        mLastTime = System.nanoTime();
+                                        runOnUiThread(new Runnable() {
+                                            @Override
+                                            public void run() {
+                                                mTime.setText("Time: " + incT);
+                                            }
+                                        });
 
-                                    // Detect faces in gray image
-//                                    Mat image_gray = new Mat();
-//                                    cvtColor(mMatImage, image_gray, Imgproc.COLOR_BGRA2GRAY);
+                                        // Detect faces in gray image
+//                                        Mat image_gray = new Mat();
+//                                        cvtColor(mMatImage, image_gray, Imgproc.COLOR_BGRA2GRAY);
 //
-//                                    MatOfRect faces = new MatOfRect();
-//                                    org.opencv.core.Rect[] facesArray;
-//                                    if (detectFace(image_gray, faces)) {
-//                                        facesArray = faces.toArray();
+//                                        MatOfRect faces = new MatOfRect();
+//                                        org.opencv.core.Rect[] facesArray;
+//                                        if (detectFace(image_gray, faces)) {
+//                                            facesArray = faces.toArray();
 //
-//                                        // Print faces in mMatImage
-//                                        for (int i = 0; i < facesArray.length; i++)
-//                                            Imgproc.rectangle(mMatImage, facesArray[i].tl(), facesArray[i].br(), FACE_RECT_COLOR, 3);
+//                                            // Print faces in mMatImage
+//                                            for (int i = 0; i < facesArray.length; i++)
+//                                                Imgproc.rectangle(mMatImage, facesArray[i].tl(), facesArray[i].br(), FACE_RECT_COLOR, 3);
 //
-//                                        updateDetection(facesArray[0]);
-//                                    }
+//                                            updateDetection(facesArray[0]);
+//                                        }
+                                    } catch (InterruptedException e) {
+
+                                    } finally {
+                                        mMutex.release();
+                                    }
                                 }
-                            } catch (InterruptedException e) {
-
-                            } finally {
-                                mMutex.release();
-                            }
+                            });
                         }
                     }
                 };
@@ -512,7 +515,11 @@ public class MainActivity extends Activity implements OnClickListener {
     /* ************************************************** Decode and utils ************************************************** */
 
     // For android API <= 23
-    private byte[] oldYuvData(byte[] yuvFrame, int width, int height){
+    private void oldYuvData(byte[] yuvFrame, int width, int height){
+        if (yuvFrame.length < width * height) {
+            return;
+        }
+
         byte[] y = new byte[width * height];
         byte[] u = new byte[width * height / 4];
         byte[] v = new byte[width * height / 4];
@@ -549,10 +556,13 @@ public class MainActivity extends Activity implements OnClickListener {
             bytes[y.length + (i * 2)] = nv[i];
             bytes[y.length + (i * 2) + 1] = nu[i];
         }
-        return yuvFrame;
     }
 
-    private byte[] yuvData(byte[] yuvFrame, int width, int height) {
+    private void yuvData(byte[] yuvFrame, int width, int height) {
+        if (yuvFrame.length < width * height) {
+            return;
+        }
+
         int length = width * height;
 
         byte[] u = new byte[width * height / 4];
@@ -567,11 +577,13 @@ public class MainActivity extends Activity implements OnClickListener {
             yuvFrame[length + 2 * i] = u[i];
             yuvFrame[length + 2 * i + 1] = v[i];
         }
-
-        return yuvFrame;
     }
 
-    private byte[] newYuvData420P(byte[] yuvFrame, int width, int height) {
+    private void newYuvData420P(byte[] yuvFrame, int width, int height) {
+        if (yuvFrame.length < width * height) {
+            return;
+        }
+
         int length = width * height;
 
         byte[] u = new byte[width * height / 4];
@@ -586,8 +598,6 @@ public class MainActivity extends Activity implements OnClickListener {
             yuvFrame[length + 2 * i] = v[i];
             yuvFrame[length + 2 * i + 1] = u[i];
         }
-
-        return yuvFrame;
     }
 
     private void screenShot(byte[] buf, String shotDir, int width, int height) {
@@ -605,7 +615,6 @@ public class MainActivity extends Activity implements OnClickListener {
         try {
             outputFile = new FileOutputStream(new File(path));
         } catch (FileNotFoundException e) {
-            Log.e(TAG, "test screenShot: new bitmap output file error: " + e);
             return;
         }
         if (outputFile != null) {
@@ -617,7 +626,6 @@ public class MainActivity extends Activity implements OnClickListener {
         try {
             outputFile.close();
         } catch (IOException e) {
-            Log.e(TAG, "test screenShot: compress yuv image error: " + e);
             e.printStackTrace();
         }
     }
