@@ -74,7 +74,7 @@ public class MainActivity extends Activity implements OnClickListener {
 
     private long mLastTime = System.nanoTime();
 
-    DecimalFormat mDF = new DecimalFormat("#.######");
+    DecimalFormat mDF = new DecimalFormat("#.#####");
 
     private Camera mCamera = null;
     private TextView mTemp, mTime, mAvgTmp, mMaxTmp, mMinTmp;
@@ -87,18 +87,19 @@ public class MainActivity extends Activity implements OnClickListener {
     private int mWidth;
     private int mHeight;
 
-    private Thread mThreadScreen, mThreadSend;
+    private Thread mThreadScreen, mThreadSend, mThreadDetect;
 
     private Semaphore mMutex = new Semaphore(1);
     private static boolean mInitOpenCV = false;
     private Mat mMatImage = null;
+    private Mat mImage = null;
     private ImagePublisher mPublisher = null;
 
     private int mSValMSX = 0;
     private int mSValFace = 0;
 
     private TextView titleTv;
-    private Button mBtVisual, mBtMSX, mBtThermal, mBtTkSC, mBtDisDetect, mBtSpot, mBtnDisMeasure, mBtRect;
+    private Button mBtVisual, mBtMSX, mBtThermal, mBtTkSC, mBtDisDetect, mBtSpot, mBtnDisMeasure, mBtRect, mBtDetect;
     private SeekBar mSbMSX, mSbFace;
 
     private ImageView mScreen;
@@ -109,16 +110,20 @@ public class MainActivity extends Activity implements OnClickListener {
     private CascadeClassifier mJavaDetector;
     private static final Scalar FACE_RECT_COLOR = new Scalar(0, 255, 0, 255);
 
-    private float mRelativeFaceSize = (float) 0.5;
+    private float mRelativeFaceSize = (float) 0.4;
     private int mAbsoluteFaceSize = 0;
 
     private RectF mNormalizedFaceRect;
 
     private boolean mShowLastRect = false;
     private boolean mDetectEnable = false;
+    private boolean mShowDefaulRect = false;
 
     Point mP1Rect = new Point();
     Point mP2Rect = new Point();
+
+    Point mP1RectDef = new Point();
+    Point mP2RectDef = new Point();
 
     static {
         mInitOpenCV = OpenCVLoader.initDebug();
@@ -224,6 +229,7 @@ public class MainActivity extends Activity implements OnClickListener {
         mBtSpot = (Button) findViewById(R.id.btn_spot);
         mBtnDisMeasure = (Button) findViewById(R.id.btn_dis_meas);
         mBtRect = (Button) findViewById(R.id.btn_rect);
+        mBtDetect = (Button) findViewById(R.id.btn_detect);
 
         mSbFace = (SeekBar) findViewById(R.id.seekbar_face);
         mSbMSX = (SeekBar) findViewById(R.id.seekbar_msx);
@@ -241,6 +247,9 @@ public class MainActivity extends Activity implements OnClickListener {
         mPtCx = (EditText) findViewById(R.id.edit_txt_cx);
         mPtCy = (EditText) findViewById(R.id.edit_txt_cy);
 
+        // TODO not working set level MSX
+        mSbMSX.setVisibility(View.GONE);
+
         mBtVisual.setOnClickListener(this);
         mBtMSX.setOnClickListener(this);
         mBtThermal.setOnClickListener(this);
@@ -249,6 +258,7 @@ public class MainActivity extends Activity implements OnClickListener {
         mBtSpot.setOnClickListener(this);
         mBtnDisMeasure.setOnClickListener(this);
         mBtRect.setOnClickListener(this);
+        mBtDetect.setOnClickListener(this);
 
         if( mPublisher == null){
             mPublisher = new ImagePublisher(8888);
@@ -267,8 +277,8 @@ public class MainActivity extends Activity implements OnClickListener {
 
             @Override
             public void onStopTrackingTouch(SeekBar seekBar) {
-                showToast("Val: " + mSValFace);
                 mRelativeFaceSize = (float) mSValFace/100;
+                showToast("Val Face: " + mRelativeFaceSize);
             }
         });
 
@@ -285,9 +295,20 @@ public class MainActivity extends Activity implements OnClickListener {
 
             @Override
             public void onStopTrackingTouch(SeekBar seekBar) {
-                showToast("Val: " + mSValMSX);
+                showToast("Val MSX: " + mSValMSX);
                 if (mCamera != null){
-                    if (mCamera.isThermalCamera()){
+                    if (mCamera.isThermalCamera()) {
+                        mCamera.setDisplayMode(SettingsDefinitions.DisplayMode.MSX, new CommonCallbacks.CompletionCallback() {
+                            @Override
+                            public void onResult(DJIError error) {
+                                if (error == null) {
+                                    showToast("Switch to MSX Succeeded");
+                                } else {
+                                    showToast(error.getDescription());
+                                }
+                            }
+                        });
+
                         mCamera.setMSXLevel(mSValMSX, new CommonCallbacks.CompletionCallback() {
                             @Override
                             public void onResult(DJIError djiError) {
@@ -319,6 +340,7 @@ public class MainActivity extends Activity implements OnClickListener {
         }
 
         if (product == null || !product.isConnected()) {
+            mCamera = null;
             showToast("Disconnected");
         } else {
             if (!product.getModel().equals(Model.UNKNOWN_AIRCRAFT)) {
@@ -383,8 +405,8 @@ public class MainActivity extends Activity implements OnClickListener {
         // Normalize detection
         float x_norm = faceDetected.x / mWidth;
         float y_norm = faceDetected.y / mHeight;
-        float width_norm = faceDetected.width / mWidth;
-        float height_norm = faceDetected.height / mHeight;
+        float width_norm = x_norm + (faceDetected.width / mWidth);
+        float height_norm = y_norm + (faceDetected.height / mHeight);
 
         mNormalizedFaceRect = new RectF(x_norm, y_norm, width_norm, height_norm);
     }
@@ -436,28 +458,6 @@ public class MainActivity extends Activity implements OnClickListener {
 
                                         mMatImage = pic.clone();
 
-                                        if(mShowLastRect){
-                                            Imgproc.rectangle(mMatImage, mP1Rect, mP2Rect, FACE_RECT_COLOR, 3);
-                                        }
-
-                                        // Detect faces in gray image
-                                        if(mDetectEnable) {
-                                            Mat image_gray = new Mat();
-                                            cvtColor(mMatImage, image_gray, Imgproc.COLOR_BGRA2GRAY);
-
-                                            MatOfRect faces = new MatOfRect();
-                                            org.opencv.core.Rect[] facesArray;
-                                            if (detectFace(image_gray, faces)) {
-                                                facesArray = faces.toArray();
-
-                                                mP1Rect = facesArray[0].tl();
-                                                mP2Rect = facesArray[0].br();
-
-                                                Imgproc.rectangle(mMatImage, facesArray[0].tl(), facesArray[0].br(), FACE_RECT_COLOR, 3);
-                                                updateDetection(facesArray[0]);
-                                            }
-                                        }
-
                                         double incT = (System.nanoTime()-mLastTime)*10e-9;
                                         mLastTime = System.nanoTime();
                                         runOnUiThread(new Runnable() {
@@ -501,12 +501,12 @@ public class MainActivity extends Activity implements OnClickListener {
                 while(true){
                     try {
                         mMutex.acquire();
-                        if(mMatImage != null){
+                        if(mImage != null){
                             runOnUiThread(new Runnable() {
                                 @Override
                                 public void run() {
-                                    Bitmap bmp = Bitmap.createBitmap(mMatImage.width(), mMatImage.height(), Bitmap.Config.ARGB_8888);
-                                    Utils.matToBitmap(mMatImage, bmp);
+                                    Bitmap bmp = Bitmap.createBitmap(mImage.width(), mImage.height(), Bitmap.Config.ARGB_8888);
+                                    Utils.matToBitmap(mImage, bmp);
                                     mScreen.setImageBitmap(bmp);
                                 }
                             });
@@ -531,9 +531,9 @@ public class MainActivity extends Activity implements OnClickListener {
                 while(true){
                     try {
                         mMutex.acquire();
-                        if(mMatImage != null){
+                        if(mImage != null){
                             // TODO CHECK IMAGE CONVERSION
-                            Mat sendImage = mMatImage.clone();
+                            Mat sendImage = mImage.clone();
                             cvtColor(sendImage, sendImage, Imgproc.COLOR_BGRA2BGR);
                             mPublisher.publish(sendImage);
                         }
@@ -552,9 +552,60 @@ public class MainActivity extends Activity implements OnClickListener {
             }
         };
 
+        Runnable runnableDetect = new Runnable() {
+            public void run() {
+                while(true){
+                    try {
+                        mMutex.acquire();
+                        if(mMatImage != null){
+                            if(mShowDefaulRect){
+                                Imgproc.rectangle(mMatImage, mP1RectDef, mP2RectDef, FACE_RECT_COLOR, 3);
+                            }
+
+                            if(mShowLastRect){
+                                Imgproc.rectangle(mMatImage, mP1Rect, mP2Rect, FACE_RECT_COLOR, 3);
+                            }
+
+                            // Detect faces in gray image
+                            if(mDetectEnable) {
+                                Mat image_gray = new Mat();
+                                cvtColor(mMatImage, image_gray, Imgproc.COLOR_BGRA2GRAY);
+
+                                MatOfRect faces = new MatOfRect();
+                                if (detectFace(image_gray, faces)) {
+                                    org.opencv.core.Rect[] facesArray;
+                                    facesArray = faces.toArray();
+
+                                    mP1Rect = facesArray[0].tl();
+                                    mP2Rect = facesArray[0].br();
+
+                                    Imgproc.rectangle(mMatImage, facesArray[0].tl(), facesArray[0].br(), FACE_RECT_COLOR, 3);
+                                    updateDetection(facesArray[0]);
+                                }
+                            }
+
+                            mImage = mMatImage.clone();
+                        }
+                    } catch (InterruptedException e) {
+                        // TODO
+                    } finally {
+                        mMutex.release();
+                    }
+
+                    try {
+                        Thread.sleep(10);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
+            }
+        };
+
         mThreadScreen = new Thread(runnableScreen);
         mThreadSend = new Thread(runnableSend);
+        mThreadDetect = new Thread(runnableDetect);
 
+        mThreadDetect.start();
         mThreadScreen.start();
         mThreadSend.start();
 
@@ -808,7 +859,7 @@ public class MainActivity extends Activity implements OnClickListener {
         }
     }
 
-    private void setMeasureRect(){
+    private void setMeasureRect(RectF rect){
         if (mCamera != null) {
             if (mCamera.isThermalCamera()) {
                 mCamera.setDisplayMode(SettingsDefinitions.DisplayMode.THERMAL_ONLY, new CommonCallbacks.CompletionCallback() {
@@ -833,7 +884,7 @@ public class MainActivity extends Activity implements OnClickListener {
                     }
                 });
 
-                mCamera.setThermalMeteringArea(mNormalizedFaceRect, new CommonCallbacks.CompletionCallback() {
+                mCamera.setThermalMeteringArea(rect, new CommonCallbacks.CompletionCallback() {
                     @Override
                     public void onResult(DJIError error) {
                         if (error == null) {
@@ -950,17 +1001,48 @@ public class MainActivity extends Activity implements OnClickListener {
                 setMeasurePoint();
             }
                 break;
-            case R.id.btn_rect:
+            case R.id.btn_detect:
             {
+                setMeasureRect(mNormalizedFaceRect);
                 mDetectEnable = false;
                 mShowLastRect = true;
-                setMeasureRect();
+                mShowDefaulRect = false;
             }
-            break;
+                break;
+            case R.id.btn_rect:
+            {
+                mP1RectDef.x = mWidth/2 - 100;
+                mP1RectDef.y = mHeight/2 - 100;
+                float width = 200;
+                float height = 200;
+
+                mP2RectDef.x = mP1RectDef.x + width;
+                mP2RectDef.y = mP1RectDef.y + height;
+
+                float x_norm = (float) mP1RectDef.x / mWidth;
+                float y_norm = (float) mP1RectDef.y / mHeight;
+                float width_norm = x_norm + (width / mWidth);
+                float height_norm = y_norm + (height / mHeight);
+
+                showToast("x norm: " + x_norm);
+                showToast("y norm: " + y_norm);
+                showToast("width norm: " + width_norm);
+                showToast("height norm: " + height_norm);
+
+                RectF mNormDefaultRect = new RectF(x_norm, y_norm, width_norm, height_norm);
+
+                setMeasureRect(mNormDefaultRect);
+                mDetectEnable = false;
+                mShowLastRect = false;
+                mShowDefaulRect = true;
+            }
+                break;
             case R.id.btn_dis_meas:
             {
-                mShowLastRect = false;
                 disMeasureTemp();
+                mShowLastRect = false;
+                mShowDefaulRect = false;
+                mDetectEnable = false;
             }
             break;
             default:
