@@ -534,9 +534,9 @@ public class MainActivity extends Activity implements OnClickListener {
                 while(true){
                     try {
                         mMutex.acquire();
-                        if(mImage != null){
+                        if(mMatImage != null){
                             // TODO CHECK IMAGE CONVERSION
-                            Mat sendImage = mImage.clone();
+                            Mat sendImage = mMatImage.clone();
                             cvtColor(sendImage, sendImage, Imgproc.COLOR_BGRA2BGR);
                             mPublisher.publish(sendImage);
                         }
