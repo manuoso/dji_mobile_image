@@ -470,7 +470,7 @@ public class MainActivity extends Activity implements OnClickListener {
                                             }
                                         });
                                     } catch (InterruptedException e) {
-                                        // TODO
+                                        e.printStackTrace();
                                     } finally {
                                         mMutex.release();
                                     }
@@ -515,7 +515,7 @@ public class MainActivity extends Activity implements OnClickListener {
                             });
                         }
                     } catch (InterruptedException e) {
-                        // TODO
+                        e.printStackTrace();
                     } finally {
                         mMutex.release();
                     }
@@ -541,7 +541,7 @@ public class MainActivity extends Activity implements OnClickListener {
                             mPublisher.publish(sendImage);
                         }
                     } catch (InterruptedException e) {
-                        // TODO
+                        e.printStackTrace();
                     } finally {
                         mMutex.release();
                     }
@@ -594,7 +594,7 @@ public class MainActivity extends Activity implements OnClickListener {
                             mImage = mMatImage.clone();
                         }
                     } catch (InterruptedException e) {
-                        // TODO
+                        e.printStackTrace();
                     } finally {
                         mMutex.release();
                     }
@@ -994,7 +994,7 @@ public class MainActivity extends Activity implements OnClickListener {
                     showToast("Take Screenshot");
                     screenShot(mImgDecode, Environment.getExternalStorageDirectory() + "/DJI_ScreenShot", mWidth, mHeight);
                 } catch (InterruptedException e) {
-                    // TODO
+                    e.printStackTrace();
                 } finally {
                     mMutex.release();
                 }
