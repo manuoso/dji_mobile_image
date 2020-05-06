@@ -537,7 +537,7 @@ public class MainActivity extends Activity implements OnClickListener {
                         if(mMatImage != null){
                             // TODO CHECK IMAGE CONVERSION
                             Mat sendImage = mMatImage.clone();
-                            cvtColor(sendImage, sendImage, Imgproc.COLOR_BGRA2BGR);
+                            cvtColor(sendImage, sendImage, Imgproc.COLOR_RGBA2BGR);
                             mPublisher.publish(sendImage);
                         }
                     } catch (InterruptedException e) {
@@ -576,7 +576,7 @@ public class MainActivity extends Activity implements OnClickListener {
                             // Detect faces in gray image
                             if(mDetectEnable) {
                                 Mat image_gray = new Mat();
-                                cvtColor(mMatImage, image_gray, Imgproc.COLOR_BGRA2GRAY);
+                                cvtColor(mMatImage, image_gray, Imgproc.COLOR_RGBA2GRAY);
 
                                 MatOfRect faces = new MatOfRect();
                                 if (detectFace(image_gray, faces)) {
@@ -1038,11 +1038,6 @@ public class MainActivity extends Activity implements OnClickListener {
                 float y_norm = (float) mP1RectDef.y / mHeight;
                 float width_norm = x_norm + (width / mWidth);
                 float height_norm = y_norm + (height / mHeight);
-
-                showToast("x norm: " + x_norm);
-                showToast("y norm: " + y_norm);
-                showToast("width norm: " + width_norm);
-                showToast("height norm: " + height_norm);
 
                 RectF mNormDefaultRect = new RectF(x_norm, y_norm, width_norm, height_norm);
 
