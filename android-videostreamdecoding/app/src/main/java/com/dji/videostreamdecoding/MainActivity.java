@@ -348,6 +348,18 @@ public class MainActivity extends Activity implements OnClickListener {
         } else {
             if (!product.getModel().equals(Model.UNKNOWN_AIRCRAFT)) {
                 mCamera = product.getCameras().get(1);
+                if (mCamera != null) {
+                    mCamera.setMode(SettingsDefinitions.CameraMode.SHOOT_PHOTO, new CommonCallbacks.CompletionCallback() {
+                        @Override
+                        public void onResult(DJIError djiError) {
+                            if (djiError == null) {
+                                showToast("Photo mode");
+                            } else {
+                                showToast(djiError.getDescription());
+                            }
+                        }
+                    });
+                }
             }
         }
     }
