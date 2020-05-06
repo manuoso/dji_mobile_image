@@ -87,4 +87,5 @@ dependencies {
     implementation 'androidx.lifecycle:lifecycle-extensions:2.0.0-rc01'
     implementation 'androidx.annotation:annotation:1.0.0'
     implementation project(path: ':openCVLibrary3410')
+    implementation 'com.google.android.material:material:1.0.0'
 }

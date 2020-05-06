@@ -45,6 +45,14 @@
         android:orientation="horizontal">
 
         <Button
+            android:id="@+id/btn_switch_fv"
+            android:layout_width="100dp"
+            android:layout_height="wrap_content"
+            android:clickable="true"
+            android:gravity="center_horizontal|center_vertical"
+            android:text="Mode F/V" />
+
+        <Button
             android:id="@+id/btn_visual"
             android:layout_width="100dp"
             android:layout_height="wrap_content"
@@ -202,8 +210,9 @@
         style="@android:style/Widget.Material.SeekBar.Discrete"
         android:layout_width="match_parent"
         android:layout_height="50dp"
+        android:layout_above="@id/lin_layout"
+        android:layout_alignParentBottom="false"
         android:layout_marginLeft="620dp"
-        android:layout_marginTop="275dp"
         android:indeterminate="false"
         android:max="100"
         android:progress="0" />

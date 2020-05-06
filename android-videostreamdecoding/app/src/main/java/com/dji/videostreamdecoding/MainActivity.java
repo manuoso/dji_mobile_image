@@ -17,7 +17,6 @@ import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
-import android.util.Log;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.Button;
@@ -79,6 +78,7 @@ public class MainActivity extends Activity implements OnClickListener {
     private Camera mCamera = null;
     private TextView mTemp, mTime, mAvgTmp, mMaxTmp, mMinTmp;
     private EditText mPtCx, mPtCy;
+    private boolean mChangeMode = false;
 
     private DJICodecManager mCodecManager = null;
     private DJICodecManager.YuvDataCallback mFrameListener = null;
@@ -99,9 +99,8 @@ public class MainActivity extends Activity implements OnClickListener {
     private int mSValFace = 0;
 
     private TextView titleTv;
-    private Button mBtVisual, mBtMSX, mBtThermal, mBtTkSC, mBtDisDetect, mBtSpot, mBtnDisMeasure, mBtRect, mBtDetect;
+    private Button mBtVisual, mBtMSX, mBtThermal, mBtTkSC, mBtDisDetect, mBtSpot, mBtnDisMeasure, mBtRect, mBtDetect, mBtFV;
     private SeekBar mSbMSX, mSbFace;
-
     private ImageView mScreen;
 
     // 666 : https://github.com/opencv/opencv/tree/master/samples/android/face-detection/src/org/opencv/samples/facedetect
@@ -113,8 +112,6 @@ public class MainActivity extends Activity implements OnClickListener {
     private float mRelativeFaceSize = (float) 0.4;
     private int mAbsoluteFaceSize = 0;
 
-    private RectF mNormalizedFaceRect;
-
     private boolean mShowLastRect = false;
     private boolean mDetectEnable = false;
     private boolean mShowDefaulRect = false;
@@ -124,6 +121,8 @@ public class MainActivity extends Activity implements OnClickListener {
 
     Point mP1Rect = new Point();
     Point mP2Rect = new Point();
+    float mWidthRect = (float) 0.0;
+    float mHeightRect = (float) 0.0;
 
     Point mP1RectDef = new Point();
     Point mP2RectDef = new Point();
@@ -241,6 +240,8 @@ public class MainActivity extends Activity implements OnClickListener {
 
         mScreen = findViewById(R.id.img_view_display);
 
+        mBtFV = (Button) findViewById(R.id.btn_switch_fv);
+
         mTime = (TextView) findViewById(R.id.text_view_time);
         mAvgTmp = (TextView) findViewById(R.id.text_view_avg_tmp);
         mMaxTmp = (TextView) findViewById(R.id.text_view_max_tmp);
@@ -251,7 +252,7 @@ public class MainActivity extends Activity implements OnClickListener {
         mPtCy = (EditText) findViewById(R.id.edit_txt_cy);
 
         // TODO not working set level MSX
-        mSbMSX.setVisibility(View.GONE);
+//        mSbMSX.setVisibility(View.GONE);
 
         mBtVisual.setOnClickListener(this);
         mBtMSX.setOnClickListener(this);
@@ -262,6 +263,8 @@ public class MainActivity extends Activity implements OnClickListener {
         mBtnDisMeasure.setOnClickListener(this);
         mBtRect.setOnClickListener(this);
         mBtDetect.setOnClickListener(this);
+
+        mBtFV.setOnClickListener(this);
 
         if( mPublisher == null){
             mPublisher = new ImagePublisher(8888);
@@ -414,16 +417,6 @@ public class MainActivity extends Activity implements OnClickListener {
             return true;
         else
             return false;
-    }
-
-    private void updateDetection(org.opencv.core.Rect faceDetected){
-        // Normalize detection
-        float x_norm = faceDetected.x / mWidth;
-        float y_norm = faceDetected.y / mHeight;
-        float width_norm = x_norm + (faceDetected.width / mWidth);
-        float height_norm = y_norm + (faceDetected.height / mHeight);
-
-        mNormalizedFaceRect = new RectF(x_norm, y_norm, width_norm, height_norm);
     }
 
     private void createCodec(){
@@ -597,9 +590,8 @@ public class MainActivity extends Activity implements OnClickListener {
 
                                     mP1Rect = facesArray[0].tl();
                                     mP2Rect = facesArray[0].br();
-
-                                    Imgproc.rectangle(mMatImage, facesArray[0].tl(), facesArray[0].br(), FACE_RECT_COLOR, 3);
-                                    updateDetection(facesArray[0]);
+                                    mWidthRect = facesArray[0].width;
+                                    mHeightRect = facesArray[0].height;
                                 }
                             }
 
@@ -754,6 +746,34 @@ public class MainActivity extends Activity implements OnClickListener {
     }
 
     /* ************************************************** Click and Configure Camera ************************************************** */
+
+    private void configureModeCamera(){
+        if (mCamera != null) {
+            if(!mChangeMode) {
+                mCamera.setMode(SettingsDefinitions.CameraMode.SHOOT_PHOTO, new CommonCallbacks.CompletionCallback() {
+                    @Override
+                    public void onResult(DJIError djiError) {
+                        if (djiError == null) {
+                            showToast("Photo mode");
+                        } else {
+                            showToast(djiError.getDescription());
+                        }
+                    }
+                });
+            }else{
+                mCamera.setMode(SettingsDefinitions.CameraMode.RECORD_VIDEO, new CommonCallbacks.CompletionCallback() {
+                    @Override
+                    public void onResult(DJIError djiError) {
+                        if (djiError == null) {
+                            showToast("Video mode");
+                        } else {
+                            showToast(djiError.getDescription());
+                        }
+                    }
+                });
+            }
+        }
+    }
 
     private void configureThermalImage(){
         if (mCamera != null) {
@@ -987,6 +1007,12 @@ public class MainActivity extends Activity implements OnClickListener {
     @Override
     public void onClick(View v) {
         switch (v.getId()) {
+            case R.id.btn_switch_fv:
+            {
+                mChangeMode = !mChangeMode;
+                configureModeCamera();
+            }
+                break;
             case R.id.btn_visual:
             {
                 configureVisualImage();
@@ -1029,7 +1055,14 @@ public class MainActivity extends Activity implements OnClickListener {
                 break;
             case R.id.btn_detect:
             {
-                setMeasureRect(mNormalizedFaceRect);
+                float x_norm = (float) mP1Rect.x / mWidth;
+                float y_norm = (float) mP1Rect.y / mHeight;
+                float width_norm = x_norm + (mWidthRect / mWidth);
+                float height_norm = y_norm + (mHeightRect / mHeight);
+
+                RectF mNormRect = new RectF(x_norm, y_norm, width_norm, height_norm);
+
+                setMeasureRect(mNormRect);
                 mDetectEnable = false;
                 mShowLastRect = true;
                 mShowDefaulRect = false;
@@ -1048,8 +1081,8 @@ public class MainActivity extends Activity implements OnClickListener {
 
                 float x_norm = (float) mP1RectDef.x / mWidth;
                 float y_norm = (float) mP1RectDef.y / mHeight;
-                float width_norm = x_norm + (width / mWidth);
-                float height_norm = y_norm + (height / mHeight);
+                float width_norm = (float) x_norm + (width / mWidth);
+                float height_norm = (float) y_norm + (height / mHeight);
 
                 RectF mNormDefaultRect = new RectF(x_norm, y_norm, width_norm, height_norm);
 
