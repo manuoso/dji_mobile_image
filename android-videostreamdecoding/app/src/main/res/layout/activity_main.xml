@@ -85,23 +85,15 @@
             android:gravity="center_horizontal|center_vertical"
             android:text="Take SC" />
 
-        <Button
-            android:id="@+id/btn_dis_det"
-            android:layout_width="100dp"
-            android:layout_height="wrap_content"
-            android:clickable="true"
-            android:gravity="center_horizontal|center_vertical"
-            android:text="Detection" />
-
         <SeekBar
-            android:id="@+id/seekbar_face"
+            android:id="@+id/seekbar_msx"
             style="@android:style/Widget.Material.SeekBar.Discrete"
             android:layout_width="wrap_content"
             android:layout_height="match_parent"
             android:layout_weight="1"
             android:indeterminate="false"
             android:max="100"
-            android:progress="40" />
+            android:progress="0" />
 
     </LinearLayout>
 
@@ -206,24 +198,15 @@
         android:text="Rect Med" />
 
     <SeekBar
-        android:id="@+id/seekbar_msx"
+        android:id="@+id/seekbar_rect"
         style="@android:style/Widget.Material.SeekBar.Discrete"
         android:layout_width="match_parent"
         android:layout_height="50dp"
-        android:layout_above="@id/lin_layout"
         android:layout_alignParentBottom="false"
         android:layout_marginLeft="620dp"
+        android:layout_marginTop="270dp"
         android:indeterminate="false"
         android:max="100"
-        android:progress="0" />
-
-    <Button
-        android:id="@+id/btn_detect"
-        android:layout_width="100dp"
-        android:layout_height="wrap_content"
-        android:layout_marginLeft="730dp"
-        android:layout_marginTop="210dp"
-        android:clickable="true"
-        android:text="Det Med" />
+        android:progress="50" />
 
 </RelativeLayout>
