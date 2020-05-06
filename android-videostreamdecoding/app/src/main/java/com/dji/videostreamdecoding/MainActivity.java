@@ -959,6 +959,9 @@ public class MainActivity extends Activity implements OnClickListener {
                     @Override
                     public void run() {
                         mTemp.setText("Temp: ");
+                        mAvgTmp.setText("Avg Temp: ");
+                        mMaxTmp.setText("Max Temp: ");
+                        mMinTmp.setText("Min Temp: ");
                     }
                 });
             }else{
@@ -1023,8 +1026,8 @@ public class MainActivity extends Activity implements OnClickListener {
                 break;
             case R.id.btn_rect:
             {
-                mP1RectDef.x = mWidth/2 - 100;
-                mP1RectDef.y = mHeight/2 - 100;
+                mP1RectDef.x = (int) (mWidth/2) - 100;
+                mP1RectDef.y = (int) (mHeight/2) - 100;
                 float width = 200;
                 float height = 200;
 
