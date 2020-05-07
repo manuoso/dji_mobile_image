@@ -231,9 +231,6 @@ public class MainActivity extends Activity implements OnClickListener {
         mPtCx = (EditText) findViewById(R.id.edit_txt_cx);
         mPtCy = (EditText) findViewById(R.id.edit_txt_cy);
 
-        // TODO not working set level MSX
-//        mSbMSX.setVisibility(View.GONE);
-
         mBtVisual.setOnClickListener(this);
         mBtMSX.setOnClickListener(this);
         mBtThermal.setOnClickListener(this);
@@ -737,10 +734,10 @@ public class MainActivity extends Activity implements OnClickListener {
         }
     }
 
-    private void setMeasurePoint(PointF point){
+    private boolean setMeasurePoint(PointF point){
         if (mCamera != null) {
             if (mCamera.isThermalCamera()) {
-                if(mIsThermal) {
+                if(mIsThermal || mIsMSX) {
                     mCamera.setThermalMeasurementMode(ThermalMeasurementMode.SPOT_METERING, new CommonCallbacks.CompletionCallback() {
                         @Override
                         public void onResult(DJIError error) {
@@ -774,24 +771,28 @@ public class MainActivity extends Activity implements OnClickListener {
                             });
                         }
                     });
+                    return true;
                 }else{
                     showToast("Put in Thermal mode");
                     disMeasureTemp();
                     mShowRect = false;
                     mShowPoint = false;
+                    return false;
                 }
             }else{
                 showToast("Camera 1 is not thermal");
+                return false;
             }
         }else{
             showToast("Camera object is null");
+            return false;
         }
     }
 
-    private void setMeasureRect(RectF rect){
+    private boolean setMeasureRect(RectF rect){
         if (mCamera != null) {
             if (mCamera.isThermalCamera()) {
-                if(mIsThermal) {
+                if(mIsThermal || mIsMSX) {
                     mCamera.setThermalMeasurementMode(ThermalMeasurementMode.AREA_METERING, new CommonCallbacks.CompletionCallback() {
                         @Override
                         public void onResult(DJIError error) {
@@ -830,17 +831,21 @@ public class MainActivity extends Activity implements OnClickListener {
                             });
                         }
                     });
+                    return true;
                 }else{
                     showToast("Put in Thermal mode");
                     disMeasureTemp();
                     mShowRect = false;
                     mShowPoint = false;
+                    return false;
                 }
             }else{
                 showToast("Camera 1 is not thermal");
+                return false;
             }
         }else{
             showToast("Camera object is null");
+            return false;
         }
     }
 
@@ -926,9 +931,10 @@ public class MainActivity extends Activity implements OnClickListener {
                 mPointSpot.x = point.x * mWidth;
                 mPointSpot.y = point.y * mHeight;
 
-                setMeasurePoint(point);
-                mShowPoint = true;
-                mShowRect = false;
+                if(setMeasurePoint(point)) {
+                    mShowPoint = true;
+                    mShowRect = false;
+                }
             }
                 break;
             case R.id.btn_rect:
@@ -948,9 +954,10 @@ public class MainActivity extends Activity implements OnClickListener {
 
                 RectF mNormDefaultRect = new RectF(x_norm, y_norm, width_norm, height_norm);
 
-                setMeasureRect(mNormDefaultRect);
-                mShowRect = true;
-                mShowPoint = false;
+                if(setMeasureRect(mNormDefaultRect)) {
+                    mShowRect = true;
+                    mShowPoint = false;
+                }
             }
                 break;
             case R.id.btn_dis_meas:
